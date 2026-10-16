@@ -61,8 +61,8 @@ void Cholesky::choleskify() {
     size_t max_rows = (max_rows_ULI > max_size_t ? max_size_t : max_rows_ULI);
 
     // Get the diagonal (Q|Q)^(0)
-    auto* diag = new double[n];
-    compute_diagonal(diag);
+    std::unique_ptr<double[]> diag(new double[n]);
+    compute_diagonal(diag.get());
 
     // Temporary cholesky factor
     std::vector<double*> L;
@@ -128,6 +128,7 @@ void Cholesky::choleskify() {
 
         Q_++;
     }
+    diag.reset();
     // Copy into a more permanant Matrix object
     L_ = std::make_shared<Matrix>("Partial Cholesky", Q_, n);
     double** Lp = L_->pointer();
