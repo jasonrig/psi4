@@ -356,7 +356,7 @@ void DFOCC::tei_iajb_chem_directAA(SharedTensor2d &K) {
     timer_on("Build (IA|JB)");
     bQiaA = std::make_shared<Tensor2d>("DF_BASIS_CC B (Q|IA)", nQ, naoccA, navirA);
     bQiaA->read(psio_, PSIF_DFOCC_INTS);
-    K->gemm(true, false, bQiaA, bQiaA, 1.0, 0.0);
+    K->syrk(true, bQiaA, 1.0, 0.0);
     bQiaA.reset();
     timer_off("Build (IA|JB)");
 }
@@ -368,7 +368,7 @@ void DFOCC::tei_iajb_chem_directBB(SharedTensor2d &K) {
     timer_on("Build (ia|jb)");
     bQiaB = std::make_shared<Tensor2d>("DF_BASIS_CC B (Q|ia)", nQ, naoccB * navirB);
     bQiaB->read(psio_, PSIF_DFOCC_INTS);
-    K->gemm(true, false, bQiaB, bQiaB, 1.0, 0.0);
+    K->syrk(true, bQiaB, 1.0, 0.0);
     bQiaB.reset();
     timer_off("Build (ia|jb)");
 }
