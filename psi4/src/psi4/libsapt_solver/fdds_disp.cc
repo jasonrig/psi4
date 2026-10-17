@@ -258,8 +258,10 @@ std::vector<SharedMatrix> FDDS_Dispersion::project_densities(std::vector<SharedM
 
     std::vector<std::shared_ptr<TwoBodyAOInt>> df_ints(nthread);
     std::vector<const double*> df_buff(nthread);
-    for (size_t thread = 0; thread < nthread; thread++) {
-        df_ints[thread] = std::shared_ptr<TwoBodyAOInt>(df_factory.eri());
+    df_ints[0] = std::shared_ptr<TwoBodyAOInt>(df_factory.eri());
+    df_buff[0] = df_ints[0]->buffer();
+    for (size_t thread = 1; thread < nthread; thread++) {
+        df_ints[thread] = std::shared_ptr<TwoBodyAOInt>(df_ints[0]->clone());
         df_buff[thread] = df_ints[thread]->buffer();
     }
 

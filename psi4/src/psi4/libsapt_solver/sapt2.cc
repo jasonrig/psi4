@@ -440,8 +440,10 @@ void SAPT2::df_integrals() {
 
     std::shared_ptr<TwoBodyAOInt> *eri = new std::shared_ptr<TwoBodyAOInt>[nthreads];
     const auto **buffer = new const double *[nthreads];
-    for (int i = 0; i < nthreads; ++i) {
-        eri[i] = std::shared_ptr<TwoBodyAOInt>(rifactory->eri());
+    eri[0] = std::shared_ptr<TwoBodyAOInt>(rifactory->eri());
+    buffer[0] = eri[0]->buffer();
+    for (int i = 1; i < nthreads; ++i) {
+        eri[i] = std::shared_ptr<TwoBodyAOInt>(eri[0]->clone());
         buffer[i] = eri[i]->buffer();
     }
 

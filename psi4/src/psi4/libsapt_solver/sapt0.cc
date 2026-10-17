@@ -561,8 +561,9 @@ void SAPT0::df_integrals() {
     int rank = 0;
 
     auto eri = std::vector<std::unique_ptr<TwoBodyAOInt>>(nthreads);
-    for (int i = 0; i < nthreads; ++i) {
-        eri[i] = std::unique_ptr<TwoBodyAOInt>(rifactory->eri());
+    eri[0] = std::unique_ptr<TwoBodyAOInt>(rifactory->eri());
+    for (int i = 1; i < nthreads; ++i) {
+        eri[i] = std::unique_ptr<TwoBodyAOInt>(eri[0]->clone());
     }
 
     zero_disk(PSIF_SAPT_TEMP, "AO RI Integrals", ndf_, nsotri_screened);
@@ -1019,8 +1020,9 @@ void SAPT0::df_integrals_aio() {
     int rank = 0;
 
     auto eri = std::vector<std::unique_ptr<TwoBodyAOInt>>(nthreads);
-    for (int i = 0; i < nthreads; ++i) {
-        eri[i] = std::unique_ptr<TwoBodyAOInt>(rifactory->eri());
+    eri[0] = std::unique_ptr<TwoBodyAOInt>(rifactory->eri());
+    for (int i = 1; i < nthreads; ++i) {
+        eri[i] = std::unique_ptr<TwoBodyAOInt>(eri[0]->clone());
     }
 
     zero_disk(PSIF_SAPT_TEMP, "AO RI Integrals", ndf_, nsotri_screened);
@@ -1510,8 +1512,9 @@ void SAPT0::oo_df_integrals() {
     int rank = 0;
 
     auto eri = std::vector<std::unique_ptr<TwoBodyAOInt>>(nthreads);
-    for (int i = 0; i < nthreads; ++i) {
-        eri[i] = std::unique_ptr<TwoBodyAOInt>(rifactory->eri());
+    eri[0] = std::unique_ptr<TwoBodyAOInt>(rifactory->eri());
+    for (int i = 1; i < nthreads; ++i) {
+        eri[i] = std::unique_ptr<TwoBodyAOInt>(eri[0]->clone());
     }
 
     int *MUNUtoMU = init_int_array(nshelltri);
