@@ -1123,15 +1123,6 @@ void DLPNO::compute_qia() {
     }  // Q loop
 
     timer_off("(mn|K) -> (ia|K)");
-
-    timer_on("(K|L)");
-
-    // Compute the full metric, don't invert
-    auto metric = FittingMetric(ribasis_, true);
-    metric.form_fitting_metric();
-    full_metric_ = std::make_shared<Matrix>(metric.get_metric());
-
-    timer_off("(K|L)");
 }
 
 
