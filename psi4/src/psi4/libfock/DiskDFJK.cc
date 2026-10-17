@@ -492,6 +492,9 @@ void DiskDFJK::compute_JK() {
             manage_JK_disk();
         }
         free_temps();
+        if (do_K_ && lr_symmetric_) {
+            for (auto& matrix : K_ao_) matrix->copy_upper_to_lower();
+        }
     }
 
     if (do_wK_) {
@@ -1863,7 +1866,11 @@ void DiskDFJK::block_K(double** Qmnp, int naux) {
         }
 
         timer_on("JK: K2");
-        C_DGEMM('N', 'T', nbf, nbf, naux * nocc, 1.0, Elp[0], naux * nocc, Erp[0], naux * nocc, 1.0, Kp[0], nbf);
+        if (lr_symmetric_) {
+            C_DSYRK('U', 'N', nbf, naux * nocc, 1.0, Elp[0], naux * nocc, 1.0, Kp[0], nbf);
+        } else {
+            C_DGEMM('N', 'T', nbf, nbf, naux * nocc, 1.0, Elp[0], naux * nocc, Erp[0], naux * nocc, 1.0, Kp[0], nbf);
+        }
         timer_off("JK: K2");
     }
 }

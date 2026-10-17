@@ -3153,6 +3153,9 @@ void DFHelper::compute_JK(std::vector<SharedMatrix> Cleft, std::vector<SharedMat
 
         bcount += block_size;
     }
+    if (do_K && lr_symmetric) {
+        for (auto& matrix : K) matrix->copy_upper_to_lower();
+    }
     // outfile->Printf("\n     ==> DFHelper:--End J/K Builds (disk)<==\n\n");
 }
 void DFHelper::compute_J_symm(std::vector<SharedMatrix> D, std::vector<SharedMatrix> J, double* Mp, double* T1p,
@@ -3360,15 +3363,17 @@ void DFHelper::compute_K(std::vector<SharedMatrix> Cleft, std::vector<SharedMatr
         first_transform_pQq(nocc, bcount, block_size, Mp, T1p, Clp, C_buffers);
 
         // compute second tmp
-        if (lr_symmetric) {
-            T2p = T1p;
-        } else {
+        if (!lr_symmetric) {
             first_transform_pQq(nocc, bcount, block_size, Mp, T2p, Crp, C_buffers);
         }
 
         // compute K
-        C_DGEMM('N', 'T', nbf_, nbf_, nocc * block_size, 1.0, T1p, nocc * block_size, T2p, nocc * block_size, 1.0, Kp,
-                nbf_);
+        if (lr_symmetric) {
+            C_DSYRK('U', 'N', nbf_, nocc * block_size, 1.0, T1p, nocc * block_size, 1.0, Kp, nbf_);
+        } else {
+            C_DGEMM('N', 'T', nbf_, nbf_, nocc * block_size, 1.0, T1p, nocc * block_size, T2p, nocc * block_size, 1.0, Kp,
+                    nbf_);
+        }
     }
 }
 void DFHelper::compute_wK(std::vector<SharedMatrix> Cleft, std::vector<SharedMatrix> Cright,
