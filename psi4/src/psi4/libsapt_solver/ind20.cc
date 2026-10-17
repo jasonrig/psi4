@@ -960,8 +960,12 @@ void SAPT2::cphf_solver(double **tAR, double **wBAR, double *evals, int intfile,
 
     double **Amat = block_matrix(nocc * nvir, nocc * nvir);
 
-    C_DGEMM('N', 'T', nocc * nvir, nocc * nvir, ndf_, -4.0, B_p_AR[0], ndf_ + 3, B_p_AR[0], ndf_ + 3, 0.0, Amat[0],
-            nocc * nvir);
+    C_DSYRK('U', 'N', nocc * nvir, ndf_, -4.0, B_p_AR[0], ndf_ + 3, 0.0, Amat[0], nocc * nvir);
+    for (size_t ar = 0; ar < nocc * nvir; ++ar) {
+        for (size_t bs = 0; bs < ar; ++bs) {
+            Amat[ar][bs] = Amat[bs][ar];
+        }
+    }
 
     for (int a = 0, ar = 0; a < nocc; a++) {
         for (int r = 0; r < nvir; r++, ar++) {
