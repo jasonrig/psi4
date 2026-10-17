@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 
 from utils import compare_values, compare
 from addons import using, uusing
@@ -6,6 +7,71 @@ from addons import using, uusing
 import psi4
 
 pytestmark = [pytest.mark.psi, pytest.mark.api]
+
+
+@pytest.mark.parametrize("ndensity", [1, 2])
+def test_dfdirj_repeated_builds(ndensity):
+    """Compare repeated direct and stored DF Coulomb builds for changing densities."""
+    mol = psi4.geometry("O\nH 1 0.96\nH 1 0.96 2 104.5\nsymmetry c1")
+    primary = psi4.core.BasisSet.build(mol, "ORBITAL", "cc-pVDZ")
+    auxiliary = psi4.core.BasisSet.build(mol, "DF_BASIS_SCF", "cc-pVDZ-jkfit")
+    rng = np.random.default_rng(7)
+    coefficients = [rng.random((primary.nbf(), 3 - i)) for i in range(ndensity)]
+    results = {}
+
+    for jk_type in ["DISK_DF", "DFDIRJ"]:
+        psi4.set_options({"scf_type": jk_type, "screening": "none", "incfock": False})
+        jk = psi4.core.JK.build(primary, aux=auxiliary, jk_type=jk_type)
+        jk.set_do_K(False)
+        jk.initialize()
+        results[jk_type] = []
+        for scale in [1.0, 0.5]:
+            jk.C_clear()
+            for coefficient in coefficients:
+                jk.C_left_add(psi4.core.Matrix.from_array(scale * coefficient))
+            jk.compute()
+            results[jk_type].append([matrix.np.copy() for matrix in jk.J()])
+        jk.finalize()
+
+    np.testing.assert_allclose(results["DFDIRJ"], results["DISK_DF"], rtol=1e-12, atol=1e-12)
+
+def test_dfdirj_unused_metric():
+    """An exchange-only build must not solve its unused, dependent Coulomb metric."""
+    mol = psi4.geometry("H 0 0 0\nH 0 0 1.4\nunits bohr\nsymmetry c1")
+    primary = psi4.core.BasisSet.build(mol, "ORBITAL", "sto-3g")
+    psi4.basis_helper("""
+        assign duplicated
+        [duplicated]
+        spherical
+        ****
+        H 0
+        S 1 1.0
+        1.0 1.0
+        S 1 1.0
+        1.0 1.0
+        ****
+    """, name="UNUSED_DFDIRJ_AUX", key="DF_BASIS_SCF", set_option=False)
+    auxiliary = psi4.core.BasisSet.build(mol, "DF_BASIS_SCF", "UNUSED_DFDIRJ_AUX")
+    zero = psi4.core.BasisSet.zero_ao_basis_set()
+    metric = psi4.core.MintsHelper(primary).ao_eri(auxiliary, zero, auxiliary, zero).np
+    assert np.linalg.matrix_rank(metric.reshape(auxiliary.nbf(), auxiliary.nbf())) < auxiliary.nbf()
+    coefficients = psi4.core.Matrix.from_array(np.array([[0.8], [0.6]]))
+    results = {}
+    for jk_type in ["DIRECT", "DFDIRJ+LINK"]:
+        psi4.set_options({"scf_type": jk_type, "screening": "density", "incfock": False})
+        jk = psi4.core.JK.build(primary, aux=auxiliary, jk_type=jk_type)
+        jk.set_do_J(False)
+        jk.set_do_K(True)
+        jk.initialize()
+        try:
+            jk.C_left_add(coefficients)
+            jk.compute()
+            results[jk_type] = jk.K()[0].np.copy()
+        finally:
+            jk.finalize()
+    assert np.linalg.norm(results["DIRECT"]) > 1e-6
+    np.testing.assert_allclose(results["DFDIRJ+LINK"], results["DIRECT"], atol=1e-12, rtol=0)
+
 
 @pytest.fixture
 def mols():

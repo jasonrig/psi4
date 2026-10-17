@@ -158,8 +158,12 @@ class PSI_API DirectDFJ : public SplitJK {
 
     /// Auxiliary basis set
     std::shared_ptr<BasisSet> auxiliary_;
-    /// Coulomb Metric
+    /// Coulomb metric, overwritten with LU factors on the first J build
     SharedMatrix J_metric_;
+    std::vector<int> J_metric_pivots_;
+    int J_metric_info_ = 0;
+    /// Diagonal shell maxima of the unfactorized metric for screening
+    std::vector<double> J_metric_shell_diag_;
 
    public:
     // => Constructors < = //
