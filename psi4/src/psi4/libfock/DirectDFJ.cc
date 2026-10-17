@@ -127,12 +127,15 @@ void DirectDFJ::build_G_component(std::vector<std::shared_ptr<Matrix>>& D, std::
     }
 
     // diagonal shell maxima of J_metric_ for screening
-    std::vector<double> J_metric_shell_diag(nshell_aux, 0.0);
-    for (size_t s = 0; s < nshell_aux; s++) {
-        int bf_start = auxiliary_->shell(s).function_index();
-        int bf_end = bf_start + auxiliary_->shell(s).nfunction();
-        for (size_t bf = bf_start; bf < bf_end; bf++) {
-            J_metric_shell_diag[s] = std::max(J_metric_shell_diag[s], J_metric_->get(bf, bf));
+    auto& J_metric_shell_diag = J_metric_shell_diag_;
+    if (J_metric_shell_diag.empty()) {
+        J_metric_shell_diag.resize(nshell_aux, 0.0);
+        for (size_t s = 0; s < nshell_aux; s++) {
+            int bf_start = auxiliary_->shell(s).function_index();
+            int bf_end = bf_start + auxiliary_->shell(s).nfunction();
+            for (size_t bf = bf_start; bf < bf_end; bf++) {
+                J_metric_shell_diag[s] = std::max(J_metric_shell_diag[s], J_metric_->get(bf, bf));
+            }
         }
     }
 
@@ -219,13 +222,20 @@ void DirectDFJ::build_G_component(std::vector<std::shared_ptr<Matrix>>& D, std::
 
     timer_on("Metric");
 
-    std::vector<int> ipiv(nbf_aux);
-
     for(size_t jki = 0; jki < njk; jki++) {
         for(size_t thread = 0; thread < nthreads_; thread++) {
             H[jki]->add(*GT[jki][thread]);
         }
-        C_DGESV(nbf_aux, 1, J_metric_->clone()->pointer()[0], nbf_aux, ipiv.data(), H[jki]->pointer(), nbf_aux);
+        if (J_metric_pivots_.empty()) {
+            // Copies may still share the unfactorized metric.
+            if (J_metric_.use_count() > 1) J_metric_ = J_metric_->clone();
+            J_metric_pivots_.resize(nbf_aux);
+            J_metric_info_ = C_DGETRF(nbf_aux, nbf_aux, J_metric_->pointer()[0], nbf_aux, J_metric_pivots_.data());
+        }
+        if (J_metric_info_) {
+            throw PSIEXCEPTION("DirectDFJ: Coulomb metric LU factorization failed.");
+        }
+        C_DGETRS('N', nbf_aux, 1, J_metric_->pointer()[0], nbf_aux, J_metric_pivots_.data(), H[jki]->pointer(), nbf_aux);
     }
 
 
