@@ -270,9 +270,6 @@ def induction(cache, jk, do_print=True, maxiter=12, conv=1.e-8, do_response=True
 
     jk.C_clear()
 
-    jk.C_left_add(core.Matrix.chain_dot(D_B, S, cache["Cocc_A"]))
-    jk.C_right_add(cache["Cocc_A"])
-
     jk.C_left_add(core.Matrix.chain_dot(D_B, S, D_A, S, cache["Cocc_B"]))
     jk.C_right_add(cache["Cocc_B"])
 
@@ -281,8 +278,8 @@ def induction(cache, jk, do_print=True, maxiter=12, conv=1.e-8, do_response=True
 
     jk.compute()
 
-    J_Ot, J_P_B, J_P_A = jk.J()
-    K_Ot, K_P_B, K_P_A = jk.K()
+    J_P_B, J_P_A = jk.J()
+    K_P_B, K_P_A = jk.K()
 
     # Exch-Ind Potential A
     EX_A = K_B.clone()

@@ -3126,26 +3126,22 @@ void FISAPT::ind() {
         auto J_Y(matrices_["JLB"]->clone());
         auto K_Y(matrices_["KLB"]->clone());
 //we need a couple extra J/K matrices as well
-        std::shared_ptr<Matrix> C_AOB = linalg::triplet(D_B, S, matrices_["AlloccA"]);
         std::shared_ptr<Matrix> C_XOB = linalg::triplet(D_B, S, matrices_["thislinkA"]);
         std::shared_ptr<Matrix> C_AOY = linalg::triplet(D_Y, S, matrices_["AlloccA"]);
         std::shared_ptr<Matrix> C_XOY = linalg::triplet(D_Y, S, matrices_["thislinkA"]);
         Cl.clear();
         Cr.clear();
-        Cl.push_back(matrices_["AlloccA"]);
         Cl.push_back(matrices_["thislinkA"]);
         Cl.push_back(matrices_["AlloccA"]);
         Cl.push_back(matrices_["thislinkA"]);
-        Cr.push_back(C_AOB);
         Cr.push_back(C_XOB);
         Cr.push_back(C_AOY);
         Cr.push_back(C_XOY);
         jk_->compute();
-        std::shared_ptr<Matrix> K_AOB = K[0];
-        std::shared_ptr<Matrix> K_XOB = K[1];
-        std::shared_ptr<Matrix> K_AOY = K[2];
-        std::shared_ptr<Matrix> K_XOY = K[3];
-        std::shared_ptr<Matrix> J_XOY = J[3];
+        std::shared_ptr<Matrix> K_XOB = K[0];
+        std::shared_ptr<Matrix> K_AOY = K[1];
+        std::shared_ptr<Matrix> K_XOY = K[2];
+        std::shared_ptr<Matrix> J_XOY = J[2];
 
     // => ExchInd perturbations <= //
 
