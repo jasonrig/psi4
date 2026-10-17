@@ -84,7 +84,7 @@ def _sf_compute_JK(jk, Cleft, Cright, rotation=None):
                                 (mol, mor, str(rotation[num].shape)))
 
             # Figure out the small MO index to contract to
-            if mol < mor:
+            if mol > mor:
                 Cl = np.dot(Cl, rotation[num])
             else:
                 Cr = np.dot(Cr, rotation[num].T)
