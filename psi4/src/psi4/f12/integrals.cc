@@ -521,6 +521,19 @@ void MP2F12::form_metric_ints(einsums::Tensor<double, 3>* DF_ERI, bool is_fock) 
 
     const bool use_frzn = !is_fock;
 
+    Tensor<double, 2> AB{"JinvAB", naux_, naux_};
+    {
+        auto metric = std::make_shared<FittingMetric>(DFBS_, true);
+        metric->form_full_eig_inverse(1.0e-12);
+        SharedMatrix Jm12 = metric->get_metric();
+
+        for (size_t A = 0; A < naux_; A++) {
+            for (size_t B = 0; B < naux_; B++) {
+                AB(A, B) = Jm12->get(A, B);
+            }
+        }
+    }
+
     for (int idx = 0; idx < (order.size() / 2); idx++) {
         const int i = idx * 2;
         const int o1 = (order[i] == 'C') ? 1 : 0;
@@ -562,17 +575,6 @@ void MP2F12::form_metric_ints(einsums::Tensor<double, 3>* DF_ERI, bool is_fock) 
 
         auto APQ = std::make_unique<Tensor<double, 3>>("APQ", naux_, nmo1, nmo2);
         {
-            auto metric = std::make_shared<FittingMetric>(DFBS_, true);
-            metric->form_full_eig_inverse(1.0e-12);
-            SharedMatrix Jm12 = metric->get_metric();
-
-            Tensor<double, 2> AB{"JinvAB", naux_, naux_};
-            for (size_t A = 0; A < naux_; A++) {
-                for (size_t B = 0; B < naux_; B++) {
-                    AB(A, B) = Jm12->get(A, B);
-                }
-            }
-
             einsum(Indices{A, P, Q}, &APQ, Indices{A, B}, AB, Indices{B, P, Q}, BPQ);
         }
         BPQ.reset();
