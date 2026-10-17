@@ -124,9 +124,14 @@ void DLPNOMP2::lmp2_iterations() {
             int i, j;
             std::tie(i, j) = ij_to_i_j_[ij];
 
+            if (i > j) continue;
+
             R_iajb[ij] = std::make_shared<Matrix>("Residual", n_pno_[ij], n_pno_[ij]);
 
-            if (n_pno_[ij] == 0) continue;
+            if (n_pno_[ij] == 0) {
+                R_iajb[ij_to_ji_[ij]] = R_iajb[ij];
+                continue;
+            }
 
             for (int a = 0; a < n_pno_[ij]; ++a) {
                 for (int b = 0; b < n_pno_[ij]; ++b) {
@@ -156,6 +161,12 @@ void DLPNOMP2::lmp2_iterations() {
             }
 
             R_iajb_rms[ij] = R_iajb[ij]->rms();
+
+            if (i < j) {
+                int ji = ij_to_ji_[ij];
+                R_iajb[ji] = R_iajb[ij]->transpose();
+                R_iajb_rms[ji] = R_iajb_rms[ij];
+            }
         }
 
         // evaluate convergence using current amplitudes and residuals
