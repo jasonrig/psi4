@@ -935,6 +935,7 @@ class PSI_API DiskDFJK : public JK {
     // => Temps (built/destroyed in compute_JK) <= //
     std::shared_ptr<Vector> J_temp_;
     std::shared_ptr<Vector> D_temp_;
+    std::vector<std::shared_ptr<Vector>> D_packed_;
     std::shared_ptr<Vector> d_temp_;
 
     SharedMatrix E_left_;

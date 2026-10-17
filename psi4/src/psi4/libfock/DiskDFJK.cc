@@ -363,6 +363,7 @@ int DiskDFJK::max_nocc() const {
     return max_nocc;
 }
 void DiskDFJK::initialize_temps() {
+    D_packed_.clear();
     J_temp_ = std::make_shared<Vector>("Jtemp", n_function_pairs_);
     D_temp_ = std::make_shared<Vector>("Dtemp", n_function_pairs_);
     d_temp_ = std::make_shared<Vector>("dtemp", max_rows_);
@@ -390,6 +391,19 @@ void DiskDFJK::initialize_temps() {
         E_right_ = E_left_;
     else
         E_right_ = std::make_shared<Matrix>("E_right", primary_->nbf(), max_rows_ * max_nocc_);
+
+    // Reuse packed densities only when they fit without changing integral blocking.
+    if (do_J_ && !D_ao_.empty()) {
+        size_t used = memory_overhead() + memory_temp();
+        used += (lr_symmetric_ ? 1L : 2L) * primary_->nbf() * max_rows_ * max_nocc_;
+        used += Qmn_ ? (size_t)Qmn_->nrow() * Qmn_->ncol() : (size_t)max_rows_ * n_function_pairs_;
+        if (Qlmn_) used += (size_t)Qlmn_->nrow() * Qlmn_->ncol();
+        if (Qrmn_) used += (size_t)Qrmn_->nrow() * Qrmn_->ncol();
+        size_t extra = (D_ao_.size() - 1) * n_function_pairs_;
+        if (!extra || (used <= memory_ && extra <= memory_ - used)) {
+            D_packed_.resize(D_ao_.size());
+        }
+    }
 }
 void DiskDFJK::initialize_w_temps() {
     int max_rows_w = max_rows_ / 2;
@@ -417,6 +431,7 @@ void DiskDFJK::initialize_w_temps() {
     E_right_ = std::make_shared<Matrix>("E_right", primary_->nbf(), max_rows_w * max_nocc_);
 }
 void DiskDFJK::free_temps() {
+    D_packed_.clear();
     J_temp_.reset();
     D_temp_.reset();
     d_temp_.reset();
@@ -1759,10 +1774,19 @@ void DiskDFJK::block_J(double** Qmnp, int naux) {
         double* J2p = J_temp_->pointer();
         double* D2p = D_temp_->pointer();
         double* dp = d_temp_->pointer();
-        for (size_t mn = 0; mn < num_nm; ++mn) {
-            int m = function_pairs[mn].first;
-            int n = function_pairs[mn].second;
-            D2p[mn] = (m == n ? Dp[m][n] : Dp[m][n] + Dp[n][m]);
+        bool pack = D_packed_.empty() || !D_packed_[N];
+        if (!D_packed_.empty()) {
+            if (!D_packed_[N]) {
+                D_packed_[N] = N ? std::make_shared<Vector>("Dtemp", n_function_pairs_) : D_temp_;
+            }
+            D2p = D_packed_[N]->pointer();
+        }
+        if (pack) {
+            for (size_t mn = 0; mn < num_nm; ++mn) {
+                int m = function_pairs[mn].first;
+                int n = function_pairs[mn].second;
+                D2p[mn] = (m == n ? Dp[m][n] : Dp[m][n] + Dp[n][m]);
+            }
         }
 
         timer_on("JK: J1");

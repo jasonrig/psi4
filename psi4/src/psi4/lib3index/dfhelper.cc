@@ -3087,6 +3087,7 @@ void DFHelper::compute_JK(std::vector<SharedMatrix> Cleft, std::vector<SharedMat
     Ktmp_size = std::max(Ktmp_size, nbf_ * nbf_); 
     T1 = std::make_unique<double[]>(Ktmp_size);
     double* T1p = T1.get();
+    size_t T1_size = Ktmp_size;
 
     // if lr_symmetric, we can be more clever with mem usage. T2 is used for both the
     // second tmp in the K build, as well as the completed, pruned J build.
@@ -3102,6 +3103,18 @@ void DFHelper::compute_JK(std::vector<SharedMatrix> Cleft, std::vector<SharedMat
 
     T2 = std::make_unique<double[]>(Ktmp_size);
     double* T2p = T2.get();
+
+    // Keep the existing batches and disk passes; cache packing only in unused memory.
+    std::vector<std::vector<double>> D_packed;
+    size_t used = T1_size + Ktmp_size + nthreads_ * nbf_ * std::max(max_nocc, nbf_);
+    used += (AO_core_ ? big_skips_[nbf_] : tots);
+    for (const auto& metric : metrics_) used += (size_t)metric.second->nrow() * metric.second->ncol();
+    size_t packed_size = small_skips_[nbf_];
+    if (do_J && !do_wK_ && Qsteps.size() > 1 && packed_size && used <= memory_ &&
+        D.size() * packed_size <= memory_ - used) {
+        D_packed.resize(D.size());
+        for (auto& density : D_packed) density.resize(packed_size);
+    }
 
     double* Mp;
     if (!AO_core_) {
@@ -3137,9 +3150,9 @@ void DFHelper::compute_JK(std::vector<SharedMatrix> Cleft, std::vector<SharedMat
                 compute_J_combined(D, J, M1p, T1p, T2p, C_buffers, bcount, block_size);
             } else {
                 if (lr_symmetric) {
-                    compute_J_symm(D, J, Mp, T1p, T2p, C_buffers, bcount, block_size);
+                    compute_J_symm(D, J, Mp, T1p, T2p, C_buffers, D_packed, bcount, block_size);
                 } else {
-                    compute_J(D, J, Mp, T1p, T2p, C_buffers, bcount, block_size);
+                    compute_J(D, J, Mp, T1p, T2p, C_buffers, D_packed, bcount, block_size);
                 }
             }
             timer_off("DFH: compute_J");
@@ -3156,7 +3169,8 @@ void DFHelper::compute_JK(std::vector<SharedMatrix> Cleft, std::vector<SharedMat
     // outfile->Printf("\n     ==> DFHelper:--End J/K Builds (disk)<==\n\n");
 }
 void DFHelper::compute_J_symm(std::vector<SharedMatrix> D, std::vector<SharedMatrix> J, double* Mp, double* T1p,
-                              double* T2p, std::vector<std::vector<double>>& D_buffers, size_t bcount,
+                              double* T2p, std::vector<std::vector<double>>& D_buffers,
+                              std::vector<std::vector<double>>& D_packed, size_t bcount,
                               size_t block_size) {
     for (size_t i = 0; i < J.size(); i++) {
         // grab orbital spaces
@@ -3178,15 +3192,18 @@ void DFHelper::compute_J_symm(std::vector<SharedMatrix> D, std::vector<SharedMat
             rank = omp_get_thread_num();
 #endif
 
-            for (size_t m = k, sp_count = -1; m < nbf_; m++) {
-                if (schwarz_fun_index_[k * nbf_ + m]) {
-                    sp_count++;
-                    D_buffers[rank][sp_count] = (m == k ? Dp[nbf_ * k + m] : 2 * Dp[nbf_ * k + m]);
+            double* packed = D_packed.empty() ? D_buffers[rank].data() : D_packed[i].data() + big_skips_[k] / naux_ + skip;
+            if (D_packed.empty() || bcount == 0) {
+                for (size_t m = k, sp_count = -1; m < nbf_; m++) {
+                    if (schwarz_fun_index_[k * nbf_ + m]) {
+                        sp_count++;
+                        packed[sp_count] = (m == k ? Dp[nbf_ * k + m] : 2 * Dp[nbf_ * k + m]);
+                    }
                 }
             }
 
             // (Qm)(m) -> (Q)
-            C_DGEMV('N', block_size, mi, 1.0, &Mp[jump + skip], si, &D_buffers[rank][0], 1, 1.0, &T1p[rank * naux_], 1);
+            C_DGEMV('N', block_size, mi, 1.0, &Mp[jump + skip], si, packed, 1, 1.0, &T1p[rank * naux_], 1);
         }
 
         // reduce
@@ -3224,7 +3241,8 @@ void DFHelper::fill(double* b, size_t count, double value) {
     }
 }
 void DFHelper::compute_J(const std::vector<SharedMatrix> D, std::vector<SharedMatrix> J, double* Mp, double* T1p, double* T2p,
-                         std::vector<std::vector<double>>& D_buffers, size_t bcount, size_t block_size) {
+                         std::vector<std::vector<double>>& D_buffers, std::vector<std::vector<double>>& D_packed,
+                         size_t bcount, size_t block_size) {
     for (size_t i = 0; i < J.size(); i++) {
         // grab orbital spaces
         auto Dp = D[i]->pointer()[0];
@@ -3244,14 +3262,17 @@ void DFHelper::compute_J(const std::vector<SharedMatrix> D, std::vector<SharedMa
             rank = omp_get_thread_num();
 #endif
 
-            for (size_t m = 0, sp_count = -1; m < nbf_; m++) {
-                if (schwarz_fun_index_[k * nbf_ + m]) {
-                    sp_count++;
-                    D_buffers[rank][sp_count] = Dp[nbf_ * k + m];
+            double* packed = D_packed.empty() ? D_buffers[rank].data() : D_packed[i].data() + big_skips_[k] / naux_;
+            if (D_packed.empty() || bcount == 0) {
+                for (size_t m = 0, sp_count = -1; m < nbf_; m++) {
+                    if (schwarz_fun_index_[k * nbf_ + m]) {
+                        sp_count++;
+                        packed[sp_count] = Dp[nbf_ * k + m];
+                    }
                 }
             }
             // (Qm)(m) -> (Q)
-            C_DGEMV('N', block_size, sp_size, 1.0, &Mp[jump], sp_size, &D_buffers[rank][0], 1, 1.0, &T1p[rank * naux_],
+            C_DGEMV('N', block_size, sp_size, 1.0, &Mp[jump], sp_size, packed, 1, 1.0, &T1p[rank * naux_],
                     1);
         }
 
