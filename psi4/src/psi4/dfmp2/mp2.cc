@@ -1092,13 +1092,18 @@ void RDFMP2::form_energy() {
 
                 // Add the MP2 energy contributions
                 for (int a = 0; a < navir; a++) {
-                    for (int b = 0; b < navir; b++) {
+                    for (int b = 0; b <= a; b++) {
                         double iajb = Iabp[a][b];
                         double ibja = Iabp[b][a];
                         double denom = -perm_factor / (eps_avirp[a] + eps_avirp[b] - eps_aoccp[i] - eps_aoccp[j]);
 
                         e_ss += (iajb * iajb - iajb * ibja) * denom;
                         e_os += (iajb * iajb) * denom;
+
+                        if (a != b) {
+                            e_ss += (ibja * ibja - ibja * iajb) * denom;
+                            e_os += (ibja * ibja) * denom;
+                        }
                     }
                 }
             }
@@ -2946,12 +2951,15 @@ void UDFMP2::form_energy() {
 
                     // Add the MP2 energy contributions
                     for (int a = 0; a < navir; a++) {
-                        for (int b = 0; b < navir; b++) {
+                        for (int b = 0; b <= a; b++) {
                             double iajb = Iabp[a][b];
                             double ibja = Iabp[b][a];
                             double denom = -perm_factor / (eps_avirp[a] + eps_avirp[b] - eps_aoccp[i] - eps_aoccp[j]);
 
                             e_ss += 0.5 * (iajb * iajb - iajb * ibja) * denom;
+                            if (a != b) {
+                                e_ss += 0.5 * (ibja * ibja - ibja * iajb) * denom;
+                            }
                         }
                     }
                 }
@@ -3066,12 +3074,15 @@ void UDFMP2::form_energy() {
 
                     // Add the MP2 energy contributions
                     for (int a = 0; a < navir; a++) {
-                        for (int b = 0; b < navir; b++) {
+                        for (int b = 0; b <= a; b++) {
                             double iajb = Iabp[a][b];
                             double ibja = Iabp[b][a];
                             double denom = -perm_factor / (eps_avirp[a] + eps_avirp[b] - eps_aoccp[i] - eps_aoccp[j]);
 
                             e_ss += 0.5 * (iajb * iajb - iajb * ibja) * denom;
+                            if (a != b) {
+                                e_ss += 0.5 * (ibja * ibja - ibja * iajb) * denom;
+                            }
                         }
                     }
                 }
