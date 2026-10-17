@@ -789,8 +789,11 @@ void SAPT0::df_integrals() {
                             1);
                 }
 
-                C_DGEMM('N', 'N', nmoA_, nmoB_, nso_, 1.0, Inu_temp[rank], nso_, &(CB_[0][0]), nmoB_, 0.0,
+                // Only AB, AS, and RB blocks are needed; omit the virtual-virtual block.
+                C_DGEMM('N', 'N', noccA_, nmoB_, nso_, 1.0, Inu_temp[rank], nso_, &(CB_[0][0]), nmoB_, 0.0,
                         IJ_temp[rank], nmoB_);
+                C_DGEMM('N', 'N', nvirA_, noccB_, nso_, 1.0, &Inu_temp[rank][noccA_ * nso_], nso_,
+                        &(CB_[0][0]), nmoB_, 0.0, &IJ_temp[rank][noccA_ * nmoB_], nmoB_);
 
                 for (int a = 0; a < noccA_; a++) {
                     C_DCOPY(noccB_, &(IJ_temp[rank][a * nmoB_]), 1, &(B_p_AB[Prel][a * noccB_]), 1);
@@ -1285,8 +1288,11 @@ void SAPT0::df_integrals_aio() {
                             &(B_p_RR[Pbl % 2][Prel][r * (r + 1) / 2]), 1);
                 }
 
-                C_DGEMM('N', 'N', nmoA_, nmoB_, nso_, 1.0, Inu_temp[rank], nso_, &(CB_[0][0]), nmoB_, 0.0,
+                // Only AB, AS, and RB blocks are needed; omit the virtual-virtual block.
+                C_DGEMM('N', 'N', noccA_, nmoB_, nso_, 1.0, Inu_temp[rank], nso_, &(CB_[0][0]), nmoB_, 0.0,
                         IJ_temp[rank], nmoB_);
+                C_DGEMM('N', 'N', nvirA_, noccB_, nso_, 1.0, &Inu_temp[rank][noccA_ * nso_], nso_,
+                        &(CB_[0][0]), nmoB_, 0.0, &IJ_temp[rank][noccA_ * nmoB_], nmoB_);
 
                 for (int a = 0; a < noccA_; a++) {
                     C_DCOPY(noccB_, &(IJ_temp[rank][a * nmoB_]), 1, &(B_p_AB[Pbl % 2][Prel][a * noccB_]), 1);
