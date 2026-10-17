@@ -45,8 +45,8 @@ void SAPT2::amplitudes() {
     tOVOV(PSIF_SAPT_BB_DF_INTS, "BS RI Integrals", foccB_, noccB_, nvirB_, evalsB_, PSIF_SAPT_BB_DF_INTS,
           "BS RI Integrals", foccB_, noccB_, nvirB_, evalsB_, PSIF_SAPT_AMPS, "tBSBS Amplitudes");
 
-    tOVOV(PSIF_SAPT_AA_DF_INTS, "AR RI Integrals", foccA_, noccA_, nvirA_, evalsA_, PSIF_SAPT_BB_DF_INTS,
-          "BS RI Integrals", foccB_, noccB_, nvirB_, evalsB_, PSIF_SAPT_AMPS, "tARBS Amplitudes");
+    e_disp20_ = tOVOV(PSIF_SAPT_AA_DF_INTS, "AR RI Integrals", foccA_, noccA_, nvirA_, evalsA_, PSIF_SAPT_BB_DF_INTS,
+                     "BS RI Integrals", foccB_, noccB_, nvirB_, evalsB_, PSIF_SAPT_AMPS, "tARBS Amplitudes", true);
 
     pOOpVV(PSIF_SAPT_AMPS, "tARAR Amplitudes", "tARAR Amplitudes", aoccA_, nvirA_, PSIF_SAPT_AMPS, "pAA Density Matrix",
            "pRR Density Matrix");
@@ -103,9 +103,9 @@ void SAPT2::amplitudes() {
           PSIF_SAPT_AMPS, "Theta 2 BS Intermediates");
 }
 
-void SAPT2::tOVOV(int intfileA, const char *ARlabel, size_t foccA, size_t noccA, size_t nvirA, double *evalsA, int intfileB,
+double SAPT2::tOVOV(int intfileA, const char *ARlabel, size_t foccA, size_t noccA, size_t nvirA, double *evalsA, int intfileB,
                   const char *BSlabel, size_t foccB, size_t noccB, size_t nvirB, double *evalsB, size_t ampout,
-                  const char *amplabel) {
+                  const char *amplabel, bool compute_energy) {
     size_t aoccA = noccA - foccA;
     size_t aoccB = noccB - foccB;
 
@@ -116,11 +116,14 @@ void SAPT2::tOVOV(int intfileA, const char *ARlabel, size_t foccA, size_t noccA,
     C_DGEMM('N', 'T', aoccA * nvirA, aoccB * nvirB, ndf_, 1.0, B_p_AR[0], ndf_ + 3, B_p_BS[0], ndf_ + 3, 0.0, tARBS[0],
             aoccB * nvirB);
 
+    double energy = 0.0;
     for (int a = 0, ar = 0; a < aoccA; a++) {
         for (int r = 0; r < nvirA; r++, ar++) {
             for (int b = 0, bs = 0; b < aoccB; b++) {
                 for (int s = 0; s < nvirB; s++, bs++) {
+                    double integral = tARBS[ar][bs];
                     tARBS[ar][bs] /= evalsA[a + foccA] + evalsB[b + foccB] - evalsA[r + noccA] - evalsB[s + noccB];
+                    if (compute_energy) energy += integral * tARBS[ar][bs];
                 }
             }
         }
@@ -131,6 +134,7 @@ void SAPT2::tOVOV(int intfileA, const char *ARlabel, size_t foccA, size_t noccA,
     free_block(B_p_AR);
     free_block(B_p_BS);
     free_block(tARBS);
+    return 4.0 * energy;
 }
 
 void SAPT2::pOOpVV(int ampfile, const char *amplabel, const char *thetalabel, size_t aoccA, size_t nvirA, size_t ampout,
@@ -612,8 +616,8 @@ void SAPT2p::amplitudes() {
     tOVOV(PSIF_SAPT_BB_DF_INTS, "BS RI Integrals", foccB_, noccB_, nvirB_, evalsB_, PSIF_SAPT_BB_DF_INTS,
           "BS RI Integrals", foccB_, noccB_, nvirB_, evalsB_, PSIF_SAPT_AMPS, "tBSBS Amplitudes");
 
-    tOVOV(PSIF_SAPT_AA_DF_INTS, "AR RI Integrals", foccA_, noccA_, nvirA_, evalsA_, PSIF_SAPT_BB_DF_INTS,
-          "BS RI Integrals", foccB_, noccB_, nvirB_, evalsB_, PSIF_SAPT_AMPS, "tARBS Amplitudes");
+    e_disp20_ = tOVOV(PSIF_SAPT_AA_DF_INTS, "AR RI Integrals", foccA_, noccA_, nvirA_, evalsA_, PSIF_SAPT_BB_DF_INTS,
+                     "BS RI Integrals", foccB_, noccB_, nvirB_, evalsB_, PSIF_SAPT_AMPS, "tARBS Amplitudes", true);
 
     pOOpVV(PSIF_SAPT_AMPS, "tARAR Amplitudes", "tARAR Amplitudes", aoccA_, nvirA_, PSIF_SAPT_AMPS, "pAA Density Matrix",
            "pRR Density Matrix");
@@ -735,8 +739,8 @@ void SAPT2p3::amplitudes() {
     tOVOV(PSIF_SAPT_BB_DF_INTS, "BS RI Integrals", foccB_, noccB_, nvirB_, evalsB_, PSIF_SAPT_BB_DF_INTS,
           "BS RI Integrals", foccB_, noccB_, nvirB_, evalsB_, PSIF_SAPT_AMPS, "tBSBS Amplitudes");
 
-    tOVOV(PSIF_SAPT_AA_DF_INTS, "AR RI Integrals", foccA_, noccA_, nvirA_, evalsA_, PSIF_SAPT_BB_DF_INTS,
-          "BS RI Integrals", foccB_, noccB_, nvirB_, evalsB_, PSIF_SAPT_AMPS, "tARBS Amplitudes");
+    e_disp20_ = tOVOV(PSIF_SAPT_AA_DF_INTS, "AR RI Integrals", foccA_, noccA_, nvirA_, evalsA_, PSIF_SAPT_BB_DF_INTS,
+                     "BS RI Integrals", foccB_, noccB_, nvirB_, evalsB_, PSIF_SAPT_AMPS, "tARBS Amplitudes", true);
 
     pOOpVV(PSIF_SAPT_AMPS, "tARAR Amplitudes", "tARAR Amplitudes", aoccA_, nvirA_, PSIF_SAPT_AMPS, "pAA Density Matrix",
            "pRR Density Matrix");

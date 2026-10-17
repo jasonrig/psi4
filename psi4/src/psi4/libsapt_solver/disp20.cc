@@ -118,34 +118,14 @@ void SAPT0::disp20() {
 }
 
 void SAPT2::disp20() {
-    double **B_p_AR = get_DF_ints(PSIF_SAPT_AA_DF_INTS, "AR RI Integrals", foccA_, noccA_, 0, nvirA_);
-    double **B_p_BS = get_DF_ints(PSIF_SAPT_BB_DF_INTS, "BS RI Integrals", foccB_, noccB_, 0, nvirB_);
-    double **vARBS = block_matrix(aoccA_ * nvirA_, aoccB_ * nvirB_);
-
-    C_DGEMM('N', 'T', aoccA_ * nvirA_, aoccB_ * nvirB_, ndf_, 1.0, B_p_AR[0], ndf_ + 3, B_p_BS[0], ndf_ + 3, 0.0,
-            vARBS[0], aoccB_ * nvirB_);
-
-    free_block(B_p_AR);
-    free_block(B_p_BS);
-
-    double **tARBS = block_matrix(aoccA_ * nvirA_, aoccB_ * nvirB_);
-
-    psio_->read_entry(PSIF_SAPT_AMPS, "tARBS Amplitudes", (char *)tARBS[0],
-                      sizeof(double) * aoccA_ * nvirA_ * aoccB_ * nvirB_);
-
-    e_disp20_ = 4.0 * C_DDOT((long int)aoccA_ * nvirA_ * aoccB_ * nvirB_, vARBS[0], 1, tARBS[0], 1);
-
     if (print_) {
         outfile->Printf("    Disp20              = %18.12lf [Eh]\n", e_disp20_);
     }
 
-    free_block(tARBS);
-    free_block(vARBS);
-
     if (nat_orbs_t3_) {
         double **C_p_AR = get_DF_ints(PSIF_SAPT_AA_DF_INTS, "AR NO RI Integrals", foccA_, noccA_, 0, no_nvirA_);
         double **C_p_BS = get_DF_ints(PSIF_SAPT_BB_DF_INTS, "BS NO RI Integrals", foccB_, noccB_, 0, no_nvirB_);
-        vARBS = block_matrix(aoccA_ * no_nvirA_, aoccB_ * no_nvirB_);
+        double **vARBS = block_matrix(aoccA_ * no_nvirA_, aoccB_ * no_nvirB_);
 
         C_DGEMM('N', 'T', aoccA_ * no_nvirA_, aoccB_ * no_nvirB_, ndf_, 1.0, C_p_AR[0], ndf_ + 3, C_p_BS[0], ndf_ + 3,
                 0.0, vARBS[0], aoccB_ * no_nvirB_);
