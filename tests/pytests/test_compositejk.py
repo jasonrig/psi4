@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 
 from utils import compare_values, compare
 from addons import using, uusing
@@ -360,3 +361,44 @@ def test_j_algo_bp86(j_algo, k_algo, df_basis_scf, mols):
     energy_composite = psi4.energy("bp86", molecule=molecule) 
  
     assert compare_values(energy_dfdirj, energy_composite, 6, f'BP86/{df_basis_scf} {scf_type} accurate to {j_algo} (1e-6 threshold)')
+
+
+@pytest.mark.parametrize("screening", ["schwarz", "density"])
+def test_composite_repeated_density(screening):
+    """Reused workers must screen with the current one or two densities."""
+    mol = psi4.geometry("""
+    O
+    H 1 1.00
+    H 1 1.00 2 103.1
+    symmetry c1
+    """)
+    psi4.set_options({"scf_type": "DFDIRJ+LINK", "screening": screening, "incfock": False})
+    primary = psi4.core.BasisSet.build(mol, "ORBITAL", "cc-pVDZ")
+    aux = psi4.core.BasisSet.build(mol, "ORBITAL", "cc-pVDZ-jkfit")
+    rng = np.random.default_rng(11)
+    orbitals = [rng.random((primary.nbf(), 5)) for _ in range(2)]
+
+    def builder():
+        jk = psi4.core.JK.build_JK(primary, aux)
+        jk.set_memory(1000000)
+        jk.initialize()
+        return jk
+
+    reused = builder()
+    try:
+        for scale, ndensity in [(1.e-4, 1), (1.0, 2), (0.5, 1)]:
+            fresh = builder()
+            try:
+                for jk in [reused, fresh]:
+                    jk.C_clear()
+                    for coefficients in orbitals[:ndensity]:
+                        jk.C_left_add(psi4.core.Matrix.from_array(scale * coefficients))
+                    jk.compute()
+                    assert len(jk.J()) == ndensity
+                    assert len(jk.K()) == ndensity
+                for actual, expected in zip(reused.J() + reused.K(), fresh.J() + fresh.K()):
+                    np.testing.assert_allclose(actual.np, expected.np, atol=1.e-10, rtol=1.e-12)
+            finally:
+                fresh.finalize()
+    finally:
+        reused.finalize()

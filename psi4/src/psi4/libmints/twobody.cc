@@ -123,12 +123,13 @@ TwoBodyAOInt::~TwoBodyAOInt() {}
 // Haser 1989, Equation 7 
 void TwoBodyAOInt::update_density(const std::vector<SharedMatrix>& D) {
 
-    if (max_dens_shell_pair_.size() == 0) {
-        max_dens_shell_pair_.resize(D.size());
-        for (int i = 0; i < D.size(); i++) {
-            max_dens_shell_pair_[i].resize(nshell_ * nshell_);
-        }
+    // Reuse unshared storage; workers and clones retain their previous snapshot on updates.
+    if (!max_dens_shell_pair_ || max_dens_shell_pair_.use_count() != 1) {
+        max_dens_shell_pair_ = std::make_shared<std::vector<std::vector<double>>>();
     }
+    auto& density_bounds = *max_dens_shell_pair_;
+    density_bounds.resize(D.size());
+    for (auto& bounds : density_bounds) bounds.resize(nshell_ * nshell_);
     
     timer_on("Update Density");
 #pragma omp parallel for
@@ -148,8 +149,8 @@ void TwoBodyAOInt::update_density(const std::vector<SharedMatrix>& D) {
                         max_dens = std::max(max_dens, std::abs(Dp[m][n]));
                     }
                 }
-                max_dens_shell_pair_[i][M * nshell_ + N] = max_dens;
-                if (M != N) max_dens_shell_pair_[i][N * nshell_ + M] = max_dens;
+                density_bounds[i][M * nshell_ + N] = max_dens;
+                if (M != N) density_bounds[i][N * nshell_ + M] = max_dens;
             }
 
         }
@@ -160,11 +161,11 @@ void TwoBodyAOInt::update_density(const std::vector<SharedMatrix>& D) {
 
 
 double TwoBodyAOInt::shell_pair_max_density(int M, int N) const {
-    if (max_dens_shell_pair_.empty()) {
+    if (!max_dens_shell_pair_ || max_dens_shell_pair_->empty()) {
         throw PSIEXCEPTION("The density matrix has not been set in the TwoBodyAOInt class!");
     }
     double D_max = 0.0;
-    for (const auto& matrix_max_per_pair: max_dens_shell_pair_) {
+    for (const auto& matrix_max_per_pair: *max_dens_shell_pair_) {
         D_max = std::max(D_max, matrix_max_per_pair[M * nshell_ + N]);
     }
     return D_max;
@@ -172,25 +173,26 @@ double TwoBodyAOInt::shell_pair_max_density(int M, int N) const {
 
 // Haser 1989 Equations 6 to 14
 bool TwoBodyAOInt::shell_significant_density(int M, int N, int R, int S) {
+    const auto& density_bounds = *max_dens_shell_pair_;
 
     // Maximum density matrix equation
     double max_density = 0.0;
 
     // Equation 6 (RHF Case)
-    if (max_dens_shell_pair_.size() == 1) {
-        max_density = std::max({4.0 * max_dens_shell_pair_[0][M * nshell_ + N], 4.0 * max_dens_shell_pair_[0][R * nshell_ + S], 
-            max_dens_shell_pair_[0][M * nshell_ + R], max_dens_shell_pair_[0][M * nshell_ + S],
-            max_dens_shell_pair_[0][N * nshell_ + R], max_dens_shell_pair_[0][N * nshell_ + S]});
+    if (density_bounds.size() == 1) {
+        max_density = std::max({4.0 * density_bounds[0][M * nshell_ + N], 4.0 * density_bounds[0][R * nshell_ + S],
+            density_bounds[0][M * nshell_ + R], density_bounds[0][M * nshell_ + S],
+            density_bounds[0][N * nshell_ + R], density_bounds[0][N * nshell_ + S]});
     } else { // UHF and ROHF
         // J-like terms
-        double D_MN = max_dens_shell_pair_[0][M * nshell_ + N] + max_dens_shell_pair_[1][M * nshell_ + N];
-        double D_RS = max_dens_shell_pair_[0][R * nshell_ + S] + max_dens_shell_pair_[1][R * nshell_ + S];
+        double D_MN = density_bounds[0][M * nshell_ + N] + density_bounds[1][M * nshell_ + N];
+        double D_RS = density_bounds[0][R * nshell_ + S] + density_bounds[1][R * nshell_ + S];
 
         // K-like terms
-        double D_MR = std::max(max_dens_shell_pair_[0][M * nshell_ + R], max_dens_shell_pair_[1][M * nshell_ + R]);
-        double D_MS = std::max(max_dens_shell_pair_[0][M * nshell_ + S], max_dens_shell_pair_[1][M * nshell_ + S]);
-        double D_NR = std::max(max_dens_shell_pair_[0][N * nshell_ + R], max_dens_shell_pair_[1][N * nshell_ + R]);
-        double D_NS = std::max(max_dens_shell_pair_[0][N * nshell_ + S], max_dens_shell_pair_[1][N * nshell_ + S]);
+        double D_MR = std::max(density_bounds[0][M * nshell_ + R], density_bounds[1][M * nshell_ + R]);
+        double D_MS = std::max(density_bounds[0][M * nshell_ + S], density_bounds[1][M * nshell_ + S]);
+        double D_NR = std::max(density_bounds[0][N * nshell_ + R], density_bounds[1][N * nshell_ + R]);
+        double D_NS = std::max(density_bounds[0][N * nshell_ + S], density_bounds[1][N * nshell_ + S]);
 
         max_density = std::max({2.0 * D_MN, 2.0 * D_RS, D_MR, D_MS, D_NR, D_NS});
     }
