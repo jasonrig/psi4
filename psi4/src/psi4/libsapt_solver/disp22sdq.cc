@@ -392,16 +392,24 @@ double SAPT2p::disp220q_3(int ampfile, const char *tARARlabel, const char *tARBS
         double **tARBS = block_matrix(aoccA * nvirA, aoccB * nvirB);
         psio_->read_entry(ampfile, tARBSlabel, (char *)tARBS[0], sizeof(double) * aoccA * nvirA * aoccB * nvirB);
 
-        C_DGEMM('N', 'T', aoccA * nvirA, aoccA * nvirA, aoccB * nvirB, 1.0, tARBS[0], aoccB * nvirB, tARBS[0],
-                aoccB * nvirB, 0.0, xARAR[0], aoccA * nvirA);
+        C_DSYRK('U', 'N', aoccA * nvirA, aoccB * nvirB, 1.0, tARBS[0], aoccB * nvirB, 0.0, xARAR[0], aoccA * nvirA);
+        for (size_t ar = 0; ar < aoccA * nvirA; ++ar) {
+            for (size_t bs = 0; bs < ar; ++bs) {
+                xARAR[ar][bs] = xARAR[bs][ar];
+            }
+        }
 
         free_block(tARBS);
     } else if (trans == 't' || trans == 'T') {
         double **tBSAR = block_matrix(aoccB * nvirB, aoccA * nvirA);
         psio_->read_entry(ampfile, tARBSlabel, (char *)tBSAR[0], sizeof(double) * aoccA * nvirA * aoccB * nvirB);
 
-        C_DGEMM('T', 'N', aoccA * nvirA, aoccA * nvirA, aoccB * nvirB, 1.0, tBSAR[0], aoccA * nvirA, tBSAR[0],
-                aoccA * nvirA, 0.0, xARAR[0], aoccA * nvirA);
+        C_DSYRK('U', 'T', aoccA * nvirA, aoccB * nvirB, 1.0, tBSAR[0], aoccA * nvirA, 0.0, xARAR[0], aoccA * nvirA);
+        for (size_t ar = 0; ar < aoccA * nvirA; ++ar) {
+            for (size_t bs = 0; bs < ar; ++bs) {
+                xARAR[ar][bs] = xARAR[bs][ar];
+            }
+        }
 
         free_block(tBSAR);
     } else
@@ -419,8 +427,12 @@ double SAPT2p::disp220q_3(int ampfile, const char *tARARlabel, const char *tARBS
     free_block(tARAR);
 
     double **B_p_AR = get_DF_ints(intfile, ARlabel, foccA, noccA, 0, nvirA);
-    C_DGEMM('N', 'T', aoccA * nvirA, aoccA * nvirA, ndf_ + 3, 1.0, B_p_AR[0], ndf_ + 3, B_p_AR[0], ndf_ + 3, 0.0,
-            xARAR[0], aoccA * nvirA);
+    C_DSYRK('U', 'N', aoccA * nvirA, ndf_ + 3, 1.0, B_p_AR[0], ndf_ + 3, 0.0, xARAR[0], aoccA * nvirA);
+    for (size_t ar = 0; ar < aoccA * nvirA; ++ar) {
+        for (size_t bs = 0; bs < ar; ++bs) {
+            xARAR[ar][bs] = xARAR[bs][ar];
+        }
+    }
     antisym(xARAR, aoccA, nvirA);
 
     double energy = 4.0 * C_DDOT((long int)aoccA * nvirA * aoccA * nvirA, xARAR[0], 1, yARAR[0], 1);
@@ -449,8 +461,12 @@ double SAPT2p::disp220q_4(int ampfile, const char *tARARlabel, const char *tARBS
 
     double **gARAR = block_matrix(aoccA * nvirA, aoccA * nvirA);
     double **B_p_AR = get_DF_ints(intfile, ARlabel, foccA, noccA, 0, nvirA);
-    C_DGEMM('N', 'T', aoccA * nvirA, aoccA * nvirA, ndf_ + 3, 1.0, B_p_AR[0], ndf_ + 3, B_p_AR[0], ndf_ + 3, 0.0,
-            gARAR[0], aoccA * nvirA);
+    C_DSYRK('U', 'N', aoccA * nvirA, ndf_ + 3, 1.0, B_p_AR[0], ndf_ + 3, 0.0, gARAR[0], aoccA * nvirA);
+    for (size_t ar = 0; ar < aoccA * nvirA; ++ar) {
+        for (size_t bs = 0; bs < ar; ++bs) {
+            gARAR[ar][bs] = gARAR[bs][ar];
+        }
+    }
     antisym(gARAR, aoccA, nvirA);
 
     C_DGEMM('N', 'T', aoccA, aoccA, nvirA * aoccA * nvirA, 1.0, tARAR[0], nvirA * aoccA * nvirA, gARAR[0],

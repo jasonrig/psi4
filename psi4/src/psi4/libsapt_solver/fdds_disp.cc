@@ -539,10 +539,11 @@ SharedMatrix FDDS_Dispersion::form_unc_amplitude(std::string monomer, double ome
             }
         }
 
-        ret->gemm(true, false, 1.0, tmp, tmp, 1.0);
+        C_DSYRK('U', 'T', naux, osize * nvir, 1.0, tmpp[0], naux, 1.0, ret->pointer()[0], naux);
         bcount += osize;
     }
 
+    ret->copy_upper_to_lower();
     return ret;
 }
 
