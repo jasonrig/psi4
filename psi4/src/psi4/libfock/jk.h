@@ -46,6 +46,7 @@ namespace psi {
 class MinimalInterface;
 class BasisSet;
 class Matrix;
+class IntegralFactory;
 class TwoBodyAOInt;
 class Options;
 class PSIO;
@@ -727,8 +728,16 @@ class PSI_API DirectJK : public JK {
    protected:
     /// Number of threads for DF integrals TODO: DF_INTS_NUM_THREADS
     int df_ints_num_threads_;
-    /// ERI Sieve
+    /// Integral factory and reusable screening setup; shell integrals are recomputed.
+    std::shared_ptr<IntegralFactory> integral_;
     std::shared_ptr<TwoBodyAOInt> eri_;
+    std::shared_ptr<TwoBodyAOInt> erf_eri_;
+    double eri_omega_ = 0.0;
+    double eri_cutoff_ = 0.0;
+    std::string eri_screening_;
+    std::string eri_package_;
+    /// Basis inputs used by the cached integral setup
+    std::vector<double> eri_basis_data_;
 
     /// Options object
     Options& options_;
