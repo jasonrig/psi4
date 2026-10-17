@@ -296,15 +296,11 @@ void CompositeJK::compute_JK() {
     }
 
     // update ERI engine density matrices for density screening
-    if (density_screening_) {
-        for (auto eri_computer : eri_computers_["4-Center"]) {
-            eri_computer->update_density(D_ref_);
-        }
-    } else if (do_K_) {
-        if (k_algo_->name() == "LinK") {
-            for (auto eri_computer : eri_computers_["4-Center"]) {
-                eri_computer->update_density(D_ref_);
-            }
+    if (density_screening_ || (do_K_ && k_algo_->name() == "LinK")) {
+        auto& eri_computers = eri_computers_["4-Center"];
+        eri_computers.front()->update_density(D_ref_);
+        for (size_t thread = 1; thread < eri_computers.size(); thread++) {
+            eri_computers[thread]->share_density_bounds(*eri_computers.front());
         }
     }
 

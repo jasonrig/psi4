@@ -133,7 +133,7 @@ class PSI_API TwoBodyAOInt {
     /// sqrt|(mm|mm)| values (nshell)
     std::vector<double> function_sqrt_;
     /// Max density per matrix (Outer loop over density matrices, inner loop over shell pairs)
-    std::vector<std::vector<double>> max_dens_shell_pair_;
+    std::shared_ptr<std::vector<std::vector<double>>> max_dens_shell_pair_;
     /// Significant unique function pairs, in row-major, lower triangular indexing
     PairList function_pairs_;
     /// Significant unique shell pairs, in row-major, lower triangular indexing
@@ -210,6 +210,8 @@ class PSI_API TwoBodyAOInt {
     bool sieve_initialized() { return sieve_initialized_; };
     /// Update max_dens_shell_pair_ given an updated density matrix (Haser 1989)
     void update_density(const std::vector<SharedMatrix>& D);
+    /// Share density bounds with a worker using the same basis; updates preserve shared snapshots.
+    void share_density_bounds(const TwoBodyAOInt& source) { max_dens_shell_pair_ = source.max_dens_shell_pair_; }
     /// Ask the built in sieve whether this quartet contributes
     bool shell_significant(int M, int N, int R, int S) const { return sieve_impl_(M, N, R, S); };
     /// Are any of the quartets within a given shellpair list significant
