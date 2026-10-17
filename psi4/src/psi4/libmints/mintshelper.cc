@@ -2399,11 +2399,13 @@ std::map<std::string, SharedMatrix> MintsHelper::metric_grad(std::map<std::strin
     // Construct temporary matrices for each thread
     int natom = basisset_->molecule()->natom();
     std::map<std::string, std::vector<SharedMatrix>> temps;
-    for (auto kv : D) {
+    std::vector<std::vector<std::pair<double **, double **>>> read_write_pairs(nthread_);
+    for (const auto& kv : D) {
         temps[kv.first] = std::vector<SharedMatrix>();
         auto &temp = temps[kv.first];
         for (int j = 0; j < nthread_; j++) {
             temp.push_back(std::make_shared<Matrix>("temp", natom, 3));
+            read_write_pairs[j].emplace_back(kv.second->pointer(), temp.back()->pointer());
         }
     }
 
@@ -2425,7 +2427,7 @@ std::map<std::string, SharedMatrix> MintsHelper::metric_grad(std::map<std::strin
         thread = omp_get_thread_num();
 #endif
         Jint[thread]->compute_shell_deriv1(P, 0, Q, 0);
-        const auto buffers = Jint[thread]->buffers();
+        const auto& buffers = Jint[thread]->buffers();
 
         int nP = auxiliary->shell(P).nfunction();
         int cP = auxiliary->shell(P).ncartesian();
@@ -2446,17 +2448,9 @@ std::map<std::string, SharedMatrix> MintsHelper::metric_grad(std::map<std::strin
 
         double perm = (P == Q ? 1.0 : 2.0);
 
-        std::vector<std::pair<double **, double **>> read_write_pairs;
-        for (auto kv : D) {
-            auto temp1 = D[kv.first]->pointer();
-            auto temp2 = temps[kv.first][thread]->pointer();
-            auto pair = std::make_pair(temp1, temp2);
-            read_write_pairs.push_back(pair);
-        }
-
         for (int p = 0; p < nP; p++) {
             for (int q = 0; q < nQ; q++) {
-                for (auto &pair : read_write_pairs) {
+                for (auto &pair : read_write_pairs[thread]) {
                     double val = 0.5 * perm * pair.first[p + oP][q + oQ];
                     auto grad_mat = pair.second;
                     grad_mat[aP][0] -= val * (*Px);
