@@ -915,86 +915,89 @@ void DLPNO::compute_qij() {
 
     // LMO-LMO DF ints
 #pragma omp parallel for schedule(dynamic, 1)
-    for (int Q = 0; Q < ribasis_->nshell(); Q++) {
-        int nq = ribasis_->shell(Q).nfunction();
-        int qstart = ribasis_->shell(Q).function_index();
-        int centerQ = ribasis_->shell_to_center(Q);
-
-        size_t thread = 0;
-#ifdef _OPENMP
-        thread = omp_get_thread_num();
-#endif
-
-        // Sparse lists for LMO/LMO
-        auto bf_map_lmo = riatom_to_bfs1_[centerQ];
-
-        // inverse map, from global basis function index to auxiliary specific index
-        std::vector<int> bf_map_lmo_inv(nbf, -1);
-        for (int m_ind = 0; m_ind < bf_map_lmo.size(); m_ind++) {
-            bf_map_lmo_inv[bf_map_lmo[m_ind]] = m_ind;
-        }
-
-        for (size_t q = 0; q < nq; q++) {
-            qij_[qstart + q] = std::make_shared<Matrix>("(mn|Q)", bf_map_lmo.size(), bf_map_lmo.size());
-        }
-
-        for (int M : riatom_to_shells1_[centerQ]) {
-            int nm = basisset_->shell(M).nfunction();
-            int mstart = basisset_->shell(M).function_index();
-            int centerM = basisset_->shell_to_center(M);
-
-            for (int N : riatom_to_shells1_[centerQ]) {
-                int nn = basisset_->shell(N).nfunction();
-                int nstart = basisset_->shell(N).function_index();
-                int centerN = basisset_->shell_to_center(N);
-
-                // is (N in the list of M's) and (M in the list of N's)?
-                // This is (probably) not needed here, but this is copied from the qia integral code for DLPNO-MP2
-                bool MN_symmetry =
-                    (riatom_to_atoms1_dense_[centerQ][centerN] && riatom_to_atoms1_dense_[centerQ][centerM]);
-
-                // if so, we want to exploit (MN|Q) <-> (NM|Q) symmetry
-                if (N < M && MN_symmetry) continue;
-
-                // AO ERI Screening
-                if (J_metric_shell_diag_[Q] * eris[thread]->shell_pair_value(M, N) < ints_tolerance * ints_tolerance) continue;
-
-                eris[thread]->compute_shell(Q, 0, M, N);
-                const double* buffer = eris[thread]->buffer();
-
-                for (int q = 0, index = 0; q < nq; q++) {
-                    for (int m = 0; m < nm; m++) {
-                        for (int n = 0; n < nn; n++, index++) {
-                            int index_m = bf_map_lmo_inv[mstart + m];
-                            int index_n = bf_map_lmo_inv[nstart + n];
-                            qij_[qstart + q]->set(index_m, index_n, buffer[index]);
-                        }
-                    }
-                }
-
-                // (MN|Q) <-> (NM|Q) symmetry
-                if (N > M && MN_symmetry) {
-                    for (int q = 0, index = 0; q < nq; q++) {
-                        for (int m = 0; m < nm; m++) {
-                            for (int n = 0; n < nn; n++, index++) {
-                                int index_m = bf_map_lmo_inv[mstart + m];
-                                int index_n = bf_map_lmo_inv[nstart + n];
-                                qij_[qstart + q]->set(index_n, index_m, buffer[index]);
-                            }
-                        }
-                    }
-                }
-
-            } // N loop
-        } // M loop
+    for (int centerQ = 0; centerQ < molecule_->natom(); ++centerQ) {
+        if (atom_to_rishell_[centerQ].empty()) continue;
 
         auto C_lmo_slice = submatrix_rows_and_cols(*SC_lmo, riatom_to_bfs1_[centerQ], riatom_to_lmos_ext_[centerQ]);
         auto S_aa = submatrix_rows_and_cols(*reference_wavefunction_->S(), riatom_to_bfs1_[centerQ], riatom_to_bfs1_[centerQ]);
         C_DGESV_wrapper(S_aa, C_lmo_slice);
 
-        // (mn|Q) C_mi C_nj ->(ij|Q)
-        for (size_t q = 0; q < nq; q++) {
-            qij_[qstart+q] = linalg::triplet(C_lmo_slice, qij_[qstart+q], C_lmo_slice, true, false, false);
+        for (int Q : atom_to_rishell_[centerQ]) {
+            int nq = ribasis_->shell(Q).nfunction();
+            int qstart = ribasis_->shell(Q).function_index();
+
+            size_t thread = 0;
+#ifdef _OPENMP
+            thread = omp_get_thread_num();
+#endif
+
+            // Sparse lists for LMO/LMO
+            auto bf_map_lmo = riatom_to_bfs1_[centerQ];
+
+            // inverse map, from global basis function index to auxiliary specific index
+            std::vector<int> bf_map_lmo_inv(nbf, -1);
+            for (int m_ind = 0; m_ind < bf_map_lmo.size(); m_ind++) {
+                bf_map_lmo_inv[bf_map_lmo[m_ind]] = m_ind;
+            }
+
+            for (size_t q = 0; q < nq; q++) {
+                qij_[qstart + q] = std::make_shared<Matrix>("(mn|Q)", bf_map_lmo.size(), bf_map_lmo.size());
+            }
+
+            for (int M : riatom_to_shells1_[centerQ]) {
+                int nm = basisset_->shell(M).nfunction();
+                int mstart = basisset_->shell(M).function_index();
+                int centerM = basisset_->shell_to_center(M);
+
+                for (int N : riatom_to_shells1_[centerQ]) {
+                    int nn = basisset_->shell(N).nfunction();
+                    int nstart = basisset_->shell(N).function_index();
+                    int centerN = basisset_->shell_to_center(N);
+
+                    // is (N in the list of M's) and (M in the list of N's)?
+                    // This is (probably) not needed here, but this is copied from the qia integral code for DLPNO-MP2
+                    bool MN_symmetry =
+                        (riatom_to_atoms1_dense_[centerQ][centerN] && riatom_to_atoms1_dense_[centerQ][centerM]);
+
+                    // if so, we want to exploit (MN|Q) <-> (NM|Q) symmetry
+                    if (N < M && MN_symmetry) continue;
+
+                    // AO ERI Screening
+                    if (J_metric_shell_diag_[Q] * eris[thread]->shell_pair_value(M, N) < ints_tolerance * ints_tolerance) continue;
+
+                    eris[thread]->compute_shell(Q, 0, M, N);
+                    const double* buffer = eris[thread]->buffer();
+
+                    for (int q = 0, index = 0; q < nq; q++) {
+                        for (int m = 0; m < nm; m++) {
+                            for (int n = 0; n < nn; n++, index++) {
+                                int index_m = bf_map_lmo_inv[mstart + m];
+                                int index_n = bf_map_lmo_inv[nstart + n];
+                                qij_[qstart + q]->set(index_m, index_n, buffer[index]);
+                            }
+                        }
+                    }
+
+                    // (MN|Q) <-> (NM|Q) symmetry
+                    if (N > M && MN_symmetry) {
+                        for (int q = 0, index = 0; q < nq; q++) {
+                            for (int m = 0; m < nm; m++) {
+                                for (int n = 0; n < nn; n++, index++) {
+                                    int index_m = bf_map_lmo_inv[mstart + m];
+                                    int index_n = bf_map_lmo_inv[nstart + n];
+                                    qij_[qstart + q]->set(index_n, index_m, buffer[index]);
+                                }
+                            }
+                        }
+                    }
+
+                } // N loop
+            } // M loop
+
+            // (mn|Q) C_mi C_nj ->(ij|Q)
+            for (size_t q = 0; q < nq; q++) {
+                qij_[qstart+q] = linalg::triplet(C_lmo_slice, qij_[qstart+q], C_lmo_slice, true, false, false);
+            }
         }
     }
 
@@ -1030,77 +1033,8 @@ void DLPNO::compute_qia() {
     qia_.resize(naux);
 
 #pragma omp parallel for schedule(dynamic, 1)
-    for (int Q = 0; Q < ribasis_->nshell(); Q++) {
-        int nq = ribasis_->shell(Q).nfunction();
-        int qstart = ribasis_->shell(Q).function_index();
-        int centerQ = ribasis_->shell_to_center(Q);
-
-        size_t thread = 0;
-#ifdef _OPENMP
-        thread = omp_get_thread_num();
-#endif
-        // sparse lists of non-screened basis functions
-        auto bf_map1 = riatom_to_bfs1_[centerQ];
-        auto bf_map2 = riatom_to_bfs2_[centerQ];
-
-        // inverse map, from global (non-screened) bf-index to Q-specific (screened) index
-        std::vector<int> bf_map1_inv(nbf, -1);
-        std::vector<int> bf_map2_inv(nbf, -1);
-        for (int m_ind = 0; m_ind < bf_map1.size(); m_ind++) {
-            bf_map1_inv[bf_map1[m_ind]] = m_ind;
-        }
-        for (int n_ind = 0; n_ind < bf_map2.size(); n_ind++) {
-            bf_map2_inv[bf_map2[n_ind]] = n_ind;
-        }
-
-        for (size_t q = 0; q < nq; q++) {
-            qia_[qstart + q] = std::make_shared<Matrix>("(mn|Q)", bf_map1.size(), bf_map2.size());
-        }
-
-        for (int M : riatom_to_shells1_[centerQ]) {
-            int nm = basisset_->shell(M).nfunction();
-            int mstart = basisset_->shell(M).function_index();
-            int centerM = basisset_->shell_to_center(M);
-
-            for (int N : riatom_to_shells2_[centerQ]) {
-                int nn = basisset_->shell(N).nfunction();
-                int nstart = basisset_->shell(N).function_index();
-                int centerN = basisset_->shell_to_center(N);
-
-                // is (N in the list of M's) and (M in the list of N's)?
-                bool MN_symmetry =
-                    (riatom_to_atoms1_dense_[centerQ][centerN] && riatom_to_atoms2_dense_[centerQ][centerM]);
-
-                // if so, we want to exploit (MN|Q) <-> (NM|Q) symmetry
-                if (N < M && MN_symmetry) continue;
-
-                // AO ERI Screening
-                if (J_metric_shell_diag_[Q] * eris[thread]->shell_pair_value(M, N) < ints_tolerance * ints_tolerance) continue;
-
-                eris[thread]->compute_shell(Q, 0, M, N);
-                const double* buffer = eris[thread]->buffer();
-
-                for (int q = 0, index = 0; q < nq; q++) {
-                    for (int m = 0; m < nm; m++) {
-                        for (int n = 0; n < nn; n++, index++) {
-                            qia_[qstart + q]->set(bf_map1_inv[mstart + m], bf_map2_inv[nstart + n], buffer[index]);
-                        }
-                    }
-                }
-
-                // (MN|Q) <-> (NM|Q) symmetry
-                if (N > M && MN_symmetry) {
-                    for (int q = 0, index = 0; q < nq; q++) {
-                        for (int m = 0; m < nm; m++) {
-                            for (int n = 0; n < nn; n++, index++) {
-                                qia_[qstart + q]->set(bf_map1_inv[nstart + n], bf_map2_inv[mstart + m], buffer[index]);
-                            }
-                        }
-                    }
-                }
-
-            }  // N loop
-        }      // M loop
+    for (int centerQ = 0; centerQ < molecule_->natom(); ++centerQ) {
+        if (atom_to_rishell_[centerQ].empty()) continue;
 
         auto C_pao_slice = submatrix_rows_and_cols(*C_pao_, riatom_to_bfs2_[centerQ], riatom_to_paos_ext_[centerQ]);
 
@@ -1115,11 +1049,83 @@ void DLPNO::compute_qia() {
             submatrix_rows_and_cols(*reference_wavefunction_->S(), riatom_to_bfs1_[centerQ], riatom_to_bfs1_[centerQ]);
         C_DGESV_wrapper(S_aa, C_lmo_slice);
 
-        // (mn|Q) C_mi C_nu -> (iu|Q)
-        for (size_t q = 0; q < nq; q++) {
-            qia_[qstart + q] = linalg::triplet(C_lmo_slice, qia_[qstart + q], C_pao_slice, true, false, false);
-        }
+        for (int Q : atom_to_rishell_[centerQ]) {
+            int nq = ribasis_->shell(Q).nfunction();
+            int qstart = ribasis_->shell(Q).function_index();
 
+            size_t thread = 0;
+#ifdef _OPENMP
+            thread = omp_get_thread_num();
+#endif
+            // sparse lists of non-screened basis functions
+            auto bf_map1 = riatom_to_bfs1_[centerQ];
+            auto bf_map2 = riatom_to_bfs2_[centerQ];
+
+            // inverse map, from global (non-screened) bf-index to Q-specific (screened) index
+            std::vector<int> bf_map1_inv(nbf, -1);
+            std::vector<int> bf_map2_inv(nbf, -1);
+            for (int m_ind = 0; m_ind < bf_map1.size(); m_ind++) {
+                bf_map1_inv[bf_map1[m_ind]] = m_ind;
+            }
+            for (int n_ind = 0; n_ind < bf_map2.size(); n_ind++) {
+                bf_map2_inv[bf_map2[n_ind]] = n_ind;
+            }
+
+            for (size_t q = 0; q < nq; q++) {
+                qia_[qstart + q] = std::make_shared<Matrix>("(mn|Q)", bf_map1.size(), bf_map2.size());
+            }
+
+            for (int M : riatom_to_shells1_[centerQ]) {
+                int nm = basisset_->shell(M).nfunction();
+                int mstart = basisset_->shell(M).function_index();
+                int centerM = basisset_->shell_to_center(M);
+
+                for (int N : riatom_to_shells2_[centerQ]) {
+                    int nn = basisset_->shell(N).nfunction();
+                    int nstart = basisset_->shell(N).function_index();
+                    int centerN = basisset_->shell_to_center(N);
+
+                    // is (N in the list of M's) and (M in the list of N's)?
+                    bool MN_symmetry =
+                        (riatom_to_atoms1_dense_[centerQ][centerN] && riatom_to_atoms2_dense_[centerQ][centerM]);
+
+                    // if so, we want to exploit (MN|Q) <-> (NM|Q) symmetry
+                    if (N < M && MN_symmetry) continue;
+
+                    // AO ERI Screening
+                    if (J_metric_shell_diag_[Q] * eris[thread]->shell_pair_value(M, N) < ints_tolerance * ints_tolerance) continue;
+
+                    eris[thread]->compute_shell(Q, 0, M, N);
+                    const double* buffer = eris[thread]->buffer();
+
+                    for (int q = 0, index = 0; q < nq; q++) {
+                        for (int m = 0; m < nm; m++) {
+                            for (int n = 0; n < nn; n++, index++) {
+                                qia_[qstart + q]->set(bf_map1_inv[mstart + m], bf_map2_inv[nstart + n], buffer[index]);
+                            }
+                        }
+                    }
+
+                    // (MN|Q) <-> (NM|Q) symmetry
+                    if (N > M && MN_symmetry) {
+                        for (int q = 0, index = 0; q < nq; q++) {
+                            for (int m = 0; m < nm; m++) {
+                                for (int n = 0; n < nn; n++, index++) {
+                                    qia_[qstart + q]->set(bf_map1_inv[nstart + n], bf_map2_inv[mstart + m], buffer[index]);
+                                }
+                            }
+                        }
+                    }
+
+                }  // N loop
+            }      // M loop
+
+            // (mn|Q) C_mi C_nu -> (iu|Q)
+            for (size_t q = 0; q < nq; q++) {
+                qia_[qstart + q] = linalg::triplet(C_lmo_slice, qia_[qstart + q], C_pao_slice, true, false, false);
+            }
+
+        }
     }  // Q loop
 
     timer_off("(mn|K) -> (ia|K)");
