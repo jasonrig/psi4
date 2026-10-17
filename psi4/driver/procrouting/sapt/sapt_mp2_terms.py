@@ -134,6 +134,11 @@ def df_fdds_dispersion(primary, auxiliary, cache, is_hybrid, x_alpha, leg_points
     metric = fdds_obj.metric().clone().to_array()
     metric_inv = fdds_obj.metric_inv().clone().to_array()
 
+    # Frequency-independent right-hand factors.
+    metric_inv_W_A = metric_inv.dot(W_A)
+    metric_inv_W_B = metric_inv.dot(W_B)
+    del W_A, W_B
+
     # Integrate
     core.timer_on("Time Integration")
     core.print_out("\n   => Time Integration <= \n\n")
@@ -158,8 +163,8 @@ def df_fdds_dispersion(primary, auxiliary, cache, is_hybrid, x_alpha, leg_points
         # with np.printoptions(threshold=sys.maxsize):
         #     print("R_A SANITIZED", R_A)
         #     print("R_B SANITIZED", R_B)
-        Rtinv_A = np.linalg.pinv(R_A, rcond=1.e-13).transpose()
-        Rtinv_B = np.linalg.pinv(R_B, rcond=1.e-13).transpose()
+        Rtinv_metric_A = np.linalg.pinv(R_A, rcond=1.e-13).transpose().dot(metric)
+        Rtinv_metric_B = np.linalg.pinv(R_B, rcond=1.e-13).transpose().dot(metric)
 
     for point, weight in zip(*np.polynomial.legendre.leggauss(leg_points)):
 
@@ -175,7 +180,7 @@ def df_fdds_dispersion(primary, auxiliary, cache, is_hybrid, x_alpha, leg_points
 
             # K matrices
             K_A = -x_alpha * aux_dict["K1LD"] - x_alpha * aux_dict["K2LD"] + x_alpha * x_alpha * aux_dict["K21L"]
-            KRS_A = K_A.dot(Rtinv_A).dot(metric)
+            KRS_A = K_A.dot(Rtinv_metric_A)
         else:
             X_A = fdds_obj.form_unc_amplitude("A", omega)
             X_A.scale(-1.0)
@@ -183,7 +188,7 @@ def df_fdds_dispersion(primary, auxiliary, cache, is_hybrid, x_alpha, leg_points
             X_A_uc = X_A.copy()
 
         # Coupled A
-        XSW_A = X_A.dot(metric_inv).dot(W_A)
+        XSW_A = X_A.dot(metric_inv_W_A)
         if is_hybrid:
             XSW_A += 0.25 * KRS_A
 
@@ -203,7 +208,7 @@ def df_fdds_dispersion(primary, auxiliary, cache, is_hybrid, x_alpha, leg_points
 
             # K matrices
             K_B = -x_alpha * aux_dict["K1LD"] - x_alpha * aux_dict["K2LD"] + x_alpha * x_alpha * aux_dict["K21L"]
-            KRS_B = K_B.dot(Rtinv_B).dot(metric)
+            KRS_B = K_B.dot(Rtinv_metric_B)
         else:
             X_B = fdds_obj.form_unc_amplitude("B", omega)
             X_B.scale(-1.0)
@@ -211,7 +216,7 @@ def df_fdds_dispersion(primary, auxiliary, cache, is_hybrid, x_alpha, leg_points
             X_B_uc = X_B.copy()
 
         # Coupled B
-        XSW_B = X_B.dot(metric_inv).dot(W_B)
+        XSW_B = X_B.dot(metric_inv_W_B)
         if is_hybrid:
             XSW_B += 0.25 * KRS_B
 
