@@ -361,20 +361,7 @@ void SAPT0::exch_disp20_n4() {
                     C_DSCAL(B_ARBS_iter.curr_size, scale, &(T_p_BS[0][bs]), aoccB_ * nvirB_);
                 }
 
-#pragma omp for private(rank) reduction(+ : h_1)
-                for (int p = 0; p < B_ARBS_iter.curr_size; p++) {
-#ifdef _OPENMP
-                    rank = omp_get_thread_num();
-#endif
-
-                    C_DGEMM('N', 'N', aoccA_, aoccB_, nvirA_, 1.0, T_p_AR[p], nvirA_, H1_RB[0], aoccB_, 0.0, xAB[rank],
-                            aoccB_);
-                    C_DGEMM('N', 'T', aoccA_, aoccB_, nvirB_, 1.0, sAS[0], nvirB_, T_p_BS[p], nvirB_, 0.0, yAB[rank],
-                            aoccB_);
-                    h_1 += C_DDOT(aoccA_ * aoccB_, xAB[rank], 1, yAB[rank], 1);
-                }
-
-#pragma omp for private(rank) reduction(+ : h_3)
+#pragma omp for private(rank) reduction(+ : h_3, q_1, q_3, q_10)
                 for (int p = 0; p < B_ARBS_iter.curr_size; p++) {
 #ifdef _OPENMP
                     rank = omp_get_thread_num();
@@ -385,32 +372,37 @@ void SAPT0::exch_disp20_n4() {
                     C_DGEMM('N', 'T', aoccA_, aoccB_, nvirB_, 1.0, H3_AS[0], nvirB_, T_p_BS[p], nvirB_, 0.0, yAB[rank],
                             aoccB_);
                     h_3 += C_DDOT(aoccA_ * aoccB_, xAB[rank], 1, yAB[rank], 1);
-                }
-
-#pragma omp for private(rank) reduction(+ : q_1)
-                for (int p = 0; p < B_ARBS_iter.curr_size; p++) {
-#ifdef _OPENMP
-                    rank = omp_get_thread_num();
-#endif
-
-                    C_DGEMM('N', 'N', aoccA_, aoccB_, nvirA_, 1.0, T_p_AR[p], nvirA_, sRB[0], aoccB_, 0.0, xAB[rank],
-                            aoccB_);
                     C_DGEMM('N', 'T', aoccA_, aoccB_, nvirB_, 1.0, Q1_AS[0], nvirB_, T_p_BS[p], nvirB_, 0.0, yAB[rank],
                             aoccB_);
                     q_1 += C_DDOT(aoccA_ * aoccB_, xAB[rank], 1, yAB[rank], 1);
+                    C_DGEMM('N', 'T', aoccA_, aoccB_, nvirB_, 1.0, Q3_AS[0], nvirB_, T_p_BS[p], nvirB_, 0.0, yAB[rank],
+                            aoccB_);
+                    q_3 -= 2.0 * C_DDOT(aoccA_ * aoccB_, xAB[rank], 1, yAB[rank], 1);
+                    C_DGEMM('N', 'T', aoccA_, aoccB_, nvirB_, 1.0, Q10_AS[0], nvirB_, T_p_BS[p], nvirB_, 0.0, yAB[rank],
+                            aoccB_);
+                    q_10 -= 2.0 * C_DDOT(aoccA_ * aoccB_, xAB[rank], 1, yAB[rank], 1);
                 }
 
-#pragma omp for private(rank) reduction(+ : q_3)
+#pragma omp for private(rank) reduction(+ : h_1, q_5, q_7, q_11)
                 for (int p = 0; p < B_ARBS_iter.curr_size; p++) {
 #ifdef _OPENMP
                     rank = omp_get_thread_num();
 #endif
 
-                    C_DGEMM('N', 'N', aoccA_, aoccB_, nvirA_, 1.0, T_p_AR[p], nvirA_, sRB[0], aoccB_, 0.0, xAB[rank],
+                    C_DGEMM('N', 'T', aoccA_, aoccB_, nvirB_, 1.0, sAS[0], nvirB_, T_p_BS[p], nvirB_, 0.0, yAB[rank],
                             aoccB_);
-                    C_DGEMM('N', 'T', aoccA_, aoccB_, nvirB_, 1.0, Q3_AS[0], nvirB_, T_p_BS[p], nvirB_, 0.0, yAB[rank],
+                    C_DGEMM('N', 'N', aoccA_, aoccB_, nvirA_, 1.0, T_p_AR[p], nvirA_, H1_RB[0], aoccB_, 0.0, xAB[rank],
                             aoccB_);
-                    q_3 -= 2.0 * C_DDOT(aoccA_ * aoccB_, xAB[rank], 1, yAB[rank], 1);
+                    h_1 += C_DDOT(aoccA_ * aoccB_, xAB[rank], 1, yAB[rank], 1);
+                    C_DGEMM('N', 'N', aoccA_, aoccB_, nvirA_, 1.0, T_p_AR[p], nvirA_, Q5_RB[0], aoccB_, 0.0, xAB[rank],
+                            aoccB_);
+                    q_5 += C_DDOT(aoccA_ * aoccB_, xAB[rank], 1, yAB[rank], 1);
+                    C_DGEMM('N', 'N', aoccA_, aoccB_, nvirA_, 1.0, T_p_AR[p], nvirA_, Q7_RB[0], aoccB_, 0.0, xAB[rank],
+                            aoccB_);
+                    q_7 -= 2.0 * C_DDOT(aoccA_ * aoccB_, xAB[rank], 1, yAB[rank], 1);
+                    C_DGEMM('N', 'N', aoccA_, aoccB_, nvirA_, 1.0, T_p_AR[p], nvirA_, Q11_RB[0], aoccB_, 0.0, xAB[rank],
+                            aoccB_);
+                    q_11 -= 2.0 * C_DDOT(aoccA_ * aoccB_, xAB[rank], 1, yAB[rank], 1);
                 }
 
 #pragma omp for reduction(+ : q_4)
@@ -419,62 +411,10 @@ void SAPT0::exch_disp20_n4() {
                            C_DDOT(aoccB_ * nvirB_, T_p_BS[p], 1, Q4_BS[0], 1);
                 }
 
-#pragma omp for private(rank) reduction(+ : q_5)
-                for (int p = 0; p < B_ARBS_iter.curr_size; p++) {
-#ifdef _OPENMP
-                    rank = omp_get_thread_num();
-#endif
-
-                    C_DGEMM('N', 'N', aoccA_, aoccB_, nvirA_, 1.0, T_p_AR[p], nvirA_, Q5_RB[0], aoccB_, 0.0, xAB[rank],
-                            aoccB_);
-                    C_DGEMM('N', 'T', aoccA_, aoccB_, nvirB_, 1.0, sAS[0], nvirB_, T_p_BS[p], nvirB_, 0.0, yAB[rank],
-                            aoccB_);
-                    q_5 += C_DDOT(aoccA_ * aoccB_, xAB[rank], 1, yAB[rank], 1);
-                }
-
-#pragma omp for private(rank) reduction(+ : q_7)
-                for (int p = 0; p < B_ARBS_iter.curr_size; p++) {
-#ifdef _OPENMP
-                    rank = omp_get_thread_num();
-#endif
-
-                    C_DGEMM('N', 'N', aoccA_, aoccB_, nvirA_, 1.0, T_p_AR[p], nvirA_, Q7_RB[0], aoccB_, 0.0, xAB[rank],
-                            aoccB_);
-                    C_DGEMM('N', 'T', aoccA_, aoccB_, nvirB_, 1.0, sAS[0], nvirB_, T_p_BS[p], nvirB_, 0.0, yAB[rank],
-                            aoccB_);
-                    q_7 -= 2.0 * C_DDOT(aoccA_ * aoccB_, xAB[rank], 1, yAB[rank], 1);
-                }
-
 #pragma omp for reduction(+ : q_8)
                 for (int p = 0; p < B_ARBS_iter.curr_size; p++) {
                     q_8 += 4.0 * C_DDOT(aoccA_ * nvirA_, T_p_AR[p], 1, Q8_AR[0], 1) *
                            C_DDOT(aoccB_ * nvirB_, T_p_BS[p], 1, sBS[0], 1);
-                }
-
-#pragma omp for private(rank) reduction(+ : q_10)
-                for (int p = 0; p < B_ARBS_iter.curr_size; p++) {
-#ifdef _OPENMP
-                    rank = omp_get_thread_num();
-#endif
-
-                    C_DGEMM('N', 'N', aoccA_, aoccB_, nvirA_, 1.0, T_p_AR[p], nvirA_, sRB[0], aoccB_, 0.0, xAB[rank],
-                            aoccB_);
-                    C_DGEMM('N', 'T', aoccA_, aoccB_, nvirB_, 1.0, Q10_AS[0], nvirB_, T_p_BS[p], nvirB_, 0.0, yAB[rank],
-                            aoccB_);
-                    q_10 -= 2.0 * C_DDOT(aoccA_ * aoccB_, xAB[rank], 1, yAB[rank], 1);
-                }
-
-#pragma omp for private(rank) reduction(+ : q_11)
-                for (int p = 0; p < B_ARBS_iter.curr_size; p++) {
-#ifdef _OPENMP
-                    rank = omp_get_thread_num();
-#endif
-
-                    C_DGEMM('N', 'N', aoccA_, aoccB_, nvirA_, 1.0, T_p_AR[p], nvirA_, Q11_RB[0], aoccB_, 0.0, xAB[rank],
-                            aoccB_);
-                    C_DGEMM('N', 'T', aoccA_, aoccB_, nvirB_, 1.0, sAS[0], nvirB_, T_p_BS[p], nvirB_, 0.0, yAB[rank],
-                            aoccB_);
-                    q_11 -= 2.0 * C_DDOT(aoccA_ * aoccB_, xAB[rank], 1, yAB[rank], 1);
                 }
             }
         }
