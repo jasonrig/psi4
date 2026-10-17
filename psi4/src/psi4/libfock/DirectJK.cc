@@ -44,6 +44,8 @@
 #include "psi4/libpsi4util/process.h"
 #include "psi4/liboptions/liboptions.h"
 
+#include <libint2/shell.h>
+
 #include <algorithm>
 #include <limits>
 #include <sstream>
@@ -348,14 +350,46 @@ void DirectJK::compute_JK() {
         zero();
     }
 
-    auto factory = std::make_shared<IntegralFactory>(primary_, primary_, primary_, primary_);
+    // Basis centers and coefficients can change without changing the Molecule.
+    std::vector<double> basis_data;
+    basis_data.reserve(eri_basis_data_.size());
+    for (int P = 0; P < primary_->nshell(); ++P) {
+        const auto& shell = primary_->l2_shell(P);
+        basis_data.push_back(static_cast<double>(primary_->shell(P).function_index()));
+        basis_data.push_back(static_cast<double>(shell.alpha.size()));
+        basis_data.insert(basis_data.end(), shell.O.begin(), shell.O.end());
+        basis_data.insert(basis_data.end(), shell.alpha.begin(), shell.alpha.end());
+        basis_data.push_back(static_cast<double>(shell.contr.size()));
+        for (const auto& contraction : shell.contr) {
+            basis_data.push_back(static_cast<double>(contraction.l));
+            basis_data.push_back(contraction.pure ? 1.0 : 0.0);
+            basis_data.insert(basis_data.end(), contraction.coeff.begin(), contraction.coeff.end());
+        }
+    }
+    double eri_cutoff = Process::environment.options.get_double("INTS_TOLERANCE");
+    auto eri_screening = Process::environment.options.get_str("SCREENING");
+    auto eri_package = Process::environment.options.get_str("INTEGRAL_PACKAGE");
+    if (!integral_ || basis_data != eri_basis_data_ || eri_cutoff != eri_cutoff_ ||
+        eri_screening != eri_screening_ || eri_package != eri_package_) {
+        eri_.reset();
+        erf_eri_.reset();
+        integral_ = std::make_shared<IntegralFactory>(primary_, primary_, primary_, primary_);
+        eri_cutoff_ = eri_cutoff;
+        eri_screening_ = eri_screening;
+        eri_package_ = eri_package;
+        eri_basis_data_.swap(basis_data);
+    }
     
     // Passed in as a dummy when J (and/or K) is not built
     std::vector<SharedMatrix> temp;
 
     if (do_wK_) {
         std::vector<std::shared_ptr<TwoBodyAOInt>> ints;
-        ints.push_back(std::shared_ptr<TwoBodyAOInt>(factory->erf_eri(omega_)));
+        if (!erf_eri_ || eri_omega_ != omega_) {
+            erf_eri_ = std::shared_ptr<TwoBodyAOInt>(integral_->erf_eri(omega_));
+            eri_omega_ = omega_;
+        }
+        ints.push_back(erf_eri_);
         if (density_screening_) ints[0]->update_density(D_ref_);
         for (int thread = 1; thread < df_ints_num_threads_; thread++) {
             ints.push_back(std::shared_ptr<TwoBodyAOInt>(ints[0]->clone()));
@@ -369,7 +403,8 @@ void DirectJK::compute_JK() {
 
     if (do_J_ || do_K_) {
         std::vector<std::shared_ptr<TwoBodyAOInt>> ints;
-        ints.push_back(std::shared_ptr<TwoBodyAOInt>(factory->eri()));
+        if (!eri_) eri_ = std::shared_ptr<TwoBodyAOInt>(integral_->eri());
+        ints.push_back(eri_);
         if (density_screening_) ints[0]->update_density(D_ref_);
         for (int thread = 1; thread < df_ints_num_threads_; thread++) {
             ints.push_back(std::shared_ptr<TwoBodyAOInt>(ints[0]->clone()));
@@ -391,7 +426,12 @@ void DirectJK::compute_JK() {
 
     if (initial_iteration_) initial_iteration_ = false;
 }
-void DirectJK::postiterations() {}
+void DirectJK::postiterations() {
+    eri_.reset();
+    erf_eri_.reset();
+    integral_.reset();
+    eri_basis_data_.clear();
+}
 
 void DirectJK::build_JK_matrices(std::vector<std::shared_ptr<TwoBodyAOInt>>& ints, const std::vector<SharedMatrix>& D,
                         std::vector<SharedMatrix>& J, std::vector<SharedMatrix>& K) {

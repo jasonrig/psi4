@@ -123,7 +123,7 @@ TwoBodyAOInt::~TwoBodyAOInt() {}
 // Haser 1989, Equation 7 
 void TwoBodyAOInt::update_density(const std::vector<SharedMatrix>& D) {
 
-    if (max_dens_shell_pair_.size() == 0) {
+    if (max_dens_shell_pair_.size() != D.size()) {
         max_dens_shell_pair_.resize(D.size());
         for (int i = 0; i < D.size(); i++) {
             max_dens_shell_pair_[i].resize(nshell_ * nshell_);
