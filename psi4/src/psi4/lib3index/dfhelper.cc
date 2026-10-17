@@ -3073,7 +3073,7 @@ void DFHelper::compute_JK(std::vector<SharedMatrix> Cleft, std::vector<SharedMat
 #ifdef _OPENMP
         rank = omp_get_thread_num();
 #endif
-        C_buffers[rank] = std::vector<double>(nbf_ * std::max(max_nocc, nbf_));
+        C_buffers[rank] = std::vector<double>(nbf_ * std::max<size_t>(max_nocc, 1));
     }
 
     // declare bufs
@@ -3388,7 +3388,7 @@ void DFHelper::compute_wK(std::vector<SharedMatrix> Cleft, std::vector<SharedMat
 #ifdef _OPENMP
         rank = omp_get_thread_num();
 #endif
-        C_buffers[rank] = std::vector<double>(nbf_ * std::max(max_nocc, nbf_));
+        C_buffers[rank] = std::vector<double>(nbf_ * std::max<size_t>(max_nocc, 1));
     }
 
     // declare bufs
