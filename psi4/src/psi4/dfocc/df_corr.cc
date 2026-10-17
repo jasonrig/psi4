@@ -286,7 +286,6 @@ void DFOCC::formJ(std::shared_ptr<BasisSet> auxiliary_, std::shared_ptr<BasisSet
 //=======================================================
 void DFOCC::b_so(std::shared_ptr<BasisSet> primary_, std::shared_ptr<BasisSet> auxiliary_,
                  std::shared_ptr<BasisSet> zero, bool do_mp2) {
-    double** Ap = block_matrix(nQ, nso2_);
     double** Bp = block_matrix(nQ, nso2_);
 
     int nthreads = 1;
@@ -405,15 +404,13 @@ void DFOCC::b_so(std::shared_ptr<BasisSet> primary_, std::shared_ptr<BasisSet> a
     }
     */
 
-    C_DGEMM('N', 'N', nQ, nso2_, nQ, 1.0, J_mhalf[0], nQ, Bp[0], nso2_, 0.0, Ap[0], nso2_);
-    free_block(J_mhalf);
 
     SharedTensor2d K;
     // DO MP2
     //else {
     if (do_mp2 && dertype == "NONE" && oeprop_ == "FALSE" && ekt_ip_ == "FALSE" && comput_s2_ == "FALSE" && qchf_ == "FALSE") {
         //std::cout << "I ma doing new style mp2! \n";
-        free_block(Ap);
+        free_block(J_mhalf);
         bQso = std::make_shared<Tensor2d>("DF_BASIS_CC B (Q|mn)", nQ, nso_, nso_);
         bQso->set(Bp);
         free_block(Bp);
@@ -514,6 +511,9 @@ void DFOCC::b_so(std::shared_ptr<BasisSet> primary_, std::shared_ptr<BasisSet> a
     // DO NOT MP2
     //if (!do_mp2) {
     else{
+        double** Ap = block_matrix(nQ, nso2_);
+        C_DGEMM('N', 'N', nQ, nso2_, nQ, 1.0, J_mhalf[0], nQ, Bp[0], nso2_, 0.0, Ap[0], nso2_);
+        free_block(J_mhalf);
         free_block(Bp);
         bQso = std::make_shared<Tensor2d>("DF_BASIS_CC B (Q|mn)", nQ, nso_, nso_);
         bQso->set(Ap);
