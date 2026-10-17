@@ -237,6 +237,8 @@ class Tensor2d {
 
     // gemm: matrix multiplication C = A * B
     void gemm(bool transa, bool transb, const SharedTensor2d &a, const SharedTensor2d &b, double alpha, double beta);
+    // syrk: symmetric rank-k update, with both triangles populated
+    void syrk(bool transa, const SharedTensor2d &a, double alpha, double beta);
     // contract: general contraction C(m,n) = \sum_{k} A(m,k) * B(k,n)
     void contract(bool transa, bool transb, int m, int n, int k, const SharedTensor2d &a, const SharedTensor2d &b,
                   double alpha, double beta);

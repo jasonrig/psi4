@@ -873,6 +873,23 @@ void Tensor2d::gemm(bool transa, bool transb, const SharedTensor2d &a, const Sha
     }
 }  //
 
+void Tensor2d::syrk(bool transa, const SharedTensor2d &a, double alpha, double beta) {
+    int n = dim1_;
+    int k = transa ? a->dim1_ : a->dim2_;
+    if (dim2_ != n || (transa ? a->dim2_ : a->dim1_) != n) {
+        throw PSIEXCEPTION("Tensor2d::syrk dimensions are NOT consistent!");
+    }
+    if (n && k) {
+        C_DSYRK('U', transa ? 'T' : 'N', n, k, alpha, a->A2d_[0], a->dim2_, beta, A2d_[0], n);
+#pragma omp parallel for
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < i; ++j) {
+                A2d_[i][j] = A2d_[j][i];
+            }
+        }
+    }
+}
+
 void Tensor2d::contract(bool transa, bool transb, int m, int n, int k, const SharedTensor2d &a, const SharedTensor2d &b,
                         double alpha, double beta) {
     char ta = transa ? 't' : 'n';
