@@ -114,6 +114,23 @@ void DLPNOMP2::lmp2_iterations() {
     bool e_converged = false, r_converged = false;
     DIISManager diis(options_.get_int("DIIS_MAX_VECS"), "LMP2 DIIS", DIISManager::RemovalPolicy::LargestError, DIISManager::StoragePolicy::InCore);
 
+    // Pair couplings are fixed throughout the amplitude iterations.
+    std::vector<std::vector<int>> coupled_lmos(n_lmo_pairs);
+    const double f_cut = options_.get_double("F_CUT");
+    for (int ij = 0; ij < n_lmo_pairs; ++ij) {
+        int i, j;
+        std::tie(i, j) = ij_to_i_j_[ij];
+        if (n_pno_[ij] == 0) continue;
+        for (int k = 0; k < naocc; ++k) {
+            int kj = i_j_to_ij_[k][j];
+            int ik = i_j_to_ij_[i][k];
+            if ((kj != -1 && i != k && fabs(F_lmo_->get(i, k)) > f_cut && n_pno_[kj] > 0) ||
+                (ik != -1 && j != k && fabs(F_lmo_->get(k, j)) > f_cut && n_pno_[ik] > 0)) {
+                coupled_lmos[ij].push_back(k);
+            }
+        }
+    }
+
     while (!(e_converged && r_converged)) {
         // RMS of residual per LMO pair, for assessing convergence
         std::vector<double> R_iajb_rms(n_lmo_pairs, 0.0);
@@ -137,7 +154,7 @@ void DLPNOMP2::lmp2_iterations() {
                 }
             }
 
-            for (int k = 0; k < naocc; ++k) {
+            for (int k : coupled_lmos[ij]) {
                 int kj = i_j_to_ij_[k][j];
                 int ik = i_j_to_ij_[i][k];
 
