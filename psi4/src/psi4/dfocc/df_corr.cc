@@ -299,7 +299,8 @@ void DFOCC::b_so(std::shared_ptr<BasisSet> primary_, std::shared_ptr<BasisSet> a
     std::vector<std::shared_ptr<TwoBodyAOInt> > eri;
     std::vector<const double*> buffer;
     for (int t = 0; t < nthreads; t++) {
-        eri.push_back(std::shared_ptr<TwoBodyAOInt>(rifactory2->eri()));
+        eri.push_back(t == 0 ? std::shared_ptr<TwoBodyAOInt>(rifactory2->eri())
+                             : std::shared_ptr<TwoBodyAOInt>(eri.front()->clone()));
         buffer.push_back(eri[t]->buffer());
     }
 
