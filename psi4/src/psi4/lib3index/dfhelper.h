@@ -577,9 +577,11 @@ class PSI_API DFHelper {
     // @param T1p : Temporary matrix
     // @param T2p : Temporary matrix
     void compute_J(const std::vector<SharedMatrix> D, std::vector<SharedMatrix> J, double* Mp, double* T1p, double* T2p,
-                   std::vector<std::vector<double>>& D_buffers, size_t bcount, size_t block_size);
+                   std::vector<std::vector<double>>& D_buffers, std::vector<std::vector<double>>& D_packed,
+                   size_t bcount, size_t block_size);
     void compute_J_symm(std::vector<SharedMatrix> D, std::vector<SharedMatrix> J, double* Mp, double* T1p, double* T2p,
-                        std::vector<std::vector<double>>& D_buffers, size_t bcount, size_t block_size);
+                        std::vector<std::vector<double>>& D_buffers, std::vector<std::vector<double>>& D_packed,
+                        size_t bcount, size_t block_size);
     void compute_J_combined(std::vector<SharedMatrix> D, std::vector<SharedMatrix> J, double* Mp, double* T1p, double* T2p, std::vector<std::vector<double>>& D_buffers, size_t bcount, size_t block_size);
     void compute_K(std::vector<SharedMatrix> Cleft, std::vector<SharedMatrix> Cright, std::vector<SharedMatrix> K,
                    double* Tp, double* Jtmp, double* Mp, size_t bcount, size_t block_size,

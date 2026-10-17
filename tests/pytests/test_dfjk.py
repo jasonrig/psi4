@@ -72,3 +72,50 @@ def test_dfjk_compare(build_system):
     for j, t in enumerate(['J', 'K']):
         for i in range(len(disk[0])):
             assert compare_arrays(np.asarray(disk[j][i]), np.asarray(mem[j][i]), 9, t + str(i))
+
+
+@pytest.mark.parametrize("scf_type", ["DISK_DF", "MEM_DF"])
+@pytest.mark.parametrize("symmetric", [True, False])
+@pytest.mark.parametrize("do_K", [False, True])
+def test_dfjk_blocked_repeated(scf_type, symmetric, do_K):
+    mol = psi4.geometry("""
+    O
+    H 1 1.00
+    H 1 1.00 2 103.1
+    """)
+    psi4.set_options({"scf_type": scf_type, "scf_subtype": "OUT_OF_CORE"})
+    primary = psi4.core.BasisSet.build(mol, "ORBITAL", "cc-pVDZ")
+    aux = psi4.core.BasisSet.build(mol, "ORBITAL", "cc-pVDZ-jkfit")
+    rng = np.random.default_rng(9)
+    left = [rng.random((primary.nbf(), 5)) for _ in range(2)]
+    right = left if symmetric else [rng.random((primary.nbf(), 5)) for _ in range(2)]
+    builders = []
+    try:
+        for memory in ([50000, 1000000] if scf_type == "DISK_DF" else [60000, 62000, 1000000]):
+            jk = psi4.core.JK.build_JK(primary, aux)
+            jk.set_memory(memory)
+            jk.set_do_K(do_K)
+            jk.initialize()
+            builders.append(jk)
+        # The small workspace requires multiple auxiliary batches. Rebuild with new densities.
+        for scale, ndensity in [(1.0, 1), (0.5, 2), (0.25, 1)]:
+            for jk in builders:
+                jk.C_clear()
+                for cl, cr in zip(left[:ndensity], right[:ndensity]):
+                    jk.C_left_add(psi4.core.Matrix.from_array(scale * cl))
+                    if not symmetric:
+                        jk.C_right_add(psi4.core.Matrix.from_array(cr))
+                jk.compute()
+            for jk in builders:
+                assert len(jk.J()) == ndensity
+                if do_K:
+                    assert len(jk.K()) == ndensity
+            for jk in builders[:-1]:
+                for blocked, unblocked in zip(jk.J(), builders[-1].J()):
+                    np.testing.assert_allclose(blocked.np, unblocked.np, atol=1.e-10, rtol=1.e-12)
+                if do_K:
+                    for blocked, unblocked in zip(jk.K(), builders[-1].K()):
+                        np.testing.assert_allclose(blocked.np, unblocked.np, atol=1.e-10, rtol=1.e-12)
+    finally:
+        for jk in builders:
+            jk.finalize()
